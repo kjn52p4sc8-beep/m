@@ -29,7 +29,7 @@ it("creates, renames and reorders folders", async () => {
   expect((await db.folders.get(f.id))?.name).toBe("変更");
   expect((await db.folders.get(f.id))?.order).toBe(3);
 });
-it("persists notes across database reopen and cascades deletion", async () => {
+it("persists notes across reopen and moves folder contents to trash", async () => {
   const folder = (await db.folders.toArray())[0];
   const note = { ...newNote(folder), title: "保存テスト", body: "本文" };
   await saveNote(note);
@@ -37,7 +37,8 @@ it("persists notes across database reopen and cascades deletion", async () => {
   await db.open();
   expect((await db.notes.get(note.id))?.body).toBe("本文");
   await deleteFolder(folder.id);
-  expect(await db.notes.get(note.id)).toBeUndefined();
+  expect((await db.notes.get(note.id))?.deletedAt).toBeTruthy();
+  expect((await snapshot()).notes).toHaveLength(0);
 });
 it("rejects a note with an invalid folder", async () => {
   await expect(
@@ -75,7 +76,7 @@ it("upgrades v1 without changing existing notes", async () => {
   expect(await upgraded.attachments.count()).toBe(0);
   await upgraded.delete();
 });
-it("deletes attachments with a folder and rolls back a failed restore", async () => {
+it("keeps attachments in trash and rolls back a failed restore", async () => {
   const { addAttachments, backupSnapshot, replaceAll } =
     await import("./repository");
   const folder = (await db.folders.toArray())[0];
@@ -100,7 +101,7 @@ it("deletes attachments with a folder and rolls back a failed restore", async ()
   expect(await db.notes.count()).toBe(1);
   expect(await db.attachments.count()).toBe(1);
   await deleteFolder(folder.id);
-  expect(await db.attachments.count()).toBe(0);
+  expect(await db.attachments.count()).toBe(1);
 });
 
 it("updates the parent note timestamp for attachment and annotation changes", async () => {

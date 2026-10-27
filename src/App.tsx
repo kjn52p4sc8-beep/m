@@ -5,6 +5,7 @@ import KeyboardDismiss from "./components/KeyboardDismiss";
 import {
   BookOpen,
   LayoutGrid,
+  SquareCheck,
   BriefcaseBusiness,
   Wallet,
   Sprout,
@@ -37,7 +38,13 @@ import {
   saveNote,
   removeNote,
   quickFolder,
+  toggleTodo,
+  restoreNote,
+  permanentlyDeleteNote,
 } from "./data/repository";
+import TodoPanel from "./components/TodoPanel";
+import TrashView from "./components/TrashView";
+import { readTheme } from "./data/backup";
 import DataSettings from "./components/DataSettings";
 import PwaSettings from "./components/PwaSettings";
 import Editor from "./components/Editor";
@@ -50,18 +57,22 @@ const icons: Record<string, typeof Wallet> = {
   work: BriefcaseBusiness,
   life: Sprout,
 };
-type View = "home" | "category" | "search" | "settings";
+type View = "home" | "category" | "search" | "settings" | "todo" | "trash";
 export default function App() {
   const [data, setData] = useState<{
       categories: Category[];
       folders: Folder[];
       notes: Note[];
-    }>({ categories: [], folders: [], notes: [] }),
+      trash: Note[];
+    }>({ categories: [], folders: [], notes: [], trash: [] }),
     [view, setView] = useState<View>("home"),
     [categoryId, setCategoryId] = useState(""),
     [folderId, setFolderId] = useState(""),
     [editing, setEditing] = useState<Note | null>(null),
     [query, setQuery] = useState(""),
+    [filterCategory, setFilterCategory] = useState(""),
+    [filterFolder, setFilterFolder] = useState(""),
+    [filterTag, setFilterTag] = useState(""),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true),
     [creating, setCreating] = useState(false),
@@ -164,10 +175,13 @@ export default function App() {
       (n) =>
         n.categoryId === categoryId && (!folderId || n.folderId === folderId),
     );
+  const searchResults = searchNotes(data.notes, query).filter(n =>
+    (!filterCategory || n.categoryId === filterCategory) && (!filterFolder || n.folderId === filterFolder) && (!filterTag || n.tags.includes(filterTag)));
   function noteList(notes: Note[], empty = "まだメモがありません") {
     return (
       <NoteList
         notes={notes}
+        query={view === "search" ? query : ""}
         categories={data.categories}
         folders={data.folders}
         onOpen={setEditing}
@@ -191,11 +205,12 @@ export default function App() {
           </span>
           My Memo<span className="brand-dot">.</span>
         </button>
-        
+
         <div className="side-nav">
           {[
             [Home, "ホーム", "home"],
             [Search, "検索", "search"],
+            [SquareCheck, "ToDo", "todo"],
           ].map(([Icon, label, id]) => {
             const I = Icon as typeof Home;
             return (
@@ -262,7 +277,7 @@ export default function App() {
                   ? "検索"
                   : view === "settings"
                     ? "設定"
-                    : selected?.name}
+                    : view === "todo" ? "ToDo" : view === "trash" ? "ごみ箱" : selected?.name}
           </span>
           <button
             className="avatar"
@@ -322,6 +337,7 @@ export default function App() {
                       </button>
                     ); })}
                   </div>
+                  <TodoPanel compact notes={data.notes} categories={data.categories} onOpen={setEditing} onToggle={(n,t,d) => action(() => toggleTodo(n,t,d))} onShowAll={() => go("todo")} />
                   <div className="section-heading recent-heading">
                     <h2>
                       最近のメモ{" "}
@@ -464,7 +480,7 @@ export default function App() {
                             onClick={() => {
                               if (
                                 confirm(
-                                  `「${f.name}」とフォルダ内のメモをすべて削除しますか？ 元に戻せません。`,
+                                  `「${f.name}」を削除し、フォルダ内のメモをごみ箱へ移しますか？ メモは後から復元できます。`,
                                 )
                               )
                                 void action(async () => {
@@ -522,18 +538,26 @@ export default function App() {
                       </button>
                     )}
                   </label>
+                  <details className="search-filters"><summary>カテゴリー・フォルダ・タグで絞り込む</summary>
+                    <label>カテゴリー<select aria-label="カテゴリーで絞り込み" value={filterCategory} onChange={e => { setFilterCategory(e.target.value); setFilterFolder(""); }}><option value="">すべて</option>{data.categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+                    <label>フォルダ<select aria-label="フォルダで絞り込み" value={filterFolder} onChange={e => setFilterFolder(e.target.value)}><option value="">すべて</option>{data.folders.filter(f => !filterCategory || f.categoryId === filterCategory).map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select></label>
+                    <label>タグ<select aria-label="タグで絞り込み" value={filterTag} onChange={e => setFilterTag(e.target.value)}><option value="">すべて</option>{[...new Set(data.notes.flatMap(n => n.tags))].sort().map(t => <option key={t} value={t}>{t}</option>)}</select></label>
+                    <button className="text-button" onClick={() => { setFilterCategory(""); setFilterFolder(""); setFilterTag(""); }}>絞り込みを解除</button>
+                  </details>
                   <div className="section-heading">
                     <h2>{query ? "検索結果" : "すべてのメモ"}</h2>
                     <span className="muted">
-                      {searchNotes(data.notes, query).length} 件
+                      {searchResults.length} 件
                     </span>
                   </div>
                   {noteList(
-                    searchNotes(data.notes, query),
+                    searchResults,
                     "一致するメモがありません",
                   )}
                 </>
               )}
+              {view === "todo" && <><h1>ToDo</h1><p className="muted">すべてのメモのチェック項目をまとめて確認。</p><TodoPanel notes={data.notes} categories={data.categories} onOpen={setEditing} onToggle={(n,t,d) => action(() => toggleTodo(n,t,d))} /></>}
+              {view === "trash" && <TrashView notes={data.trash} onRestore={id => action(() => restoreNote(id))} onDelete={id => action(() => permanentlyDeleteNote(id))} />}
               {view === "settings" && (
                 <>
                   <h1>設定</h1>
@@ -563,7 +587,8 @@ export default function App() {
                       ))}
                     </div>
                   </section>
-                  <DataSettings onRestored={refresh} />
+                  <button className="trash-link text-button" onClick={() => go("trash")}><Trash2 size={19}/>ごみ箱（{data.trash.length}）</button>
+                  <DataSettings onRestored={async () => { setTheme(readTheme()); await refresh(); }} />
                   <PwaSettings />
                   <section className="settings-card">
                     <h2>
@@ -601,12 +626,7 @@ export default function App() {
             <Search size={21} />
             検索
           </button>
-          <button onClick={() => setNewDialog(true)}>
-            <span className="new-icon">
-              <Plus size={22} />
-            </span>
-            新規作成
-          </button>
+          <button className={view === "todo" ? "active" : ""} onClick={() => go("todo")}><SquareCheck size={22}/>ToDo</button>
           <button
             className={view === "settings" ? "active" : ""}
             onClick={() => go("settings")}

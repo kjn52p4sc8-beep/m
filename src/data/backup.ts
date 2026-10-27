@@ -5,7 +5,8 @@ import { safeUrl } from "./search";
 export const MAX_BACKUP_BYTES = 100 * 1024 * 1024;
 type Backup = {
   format: "my-memo";
-  version: 1;
+  version: 2;
+  preferences?: { theme: "light" | "dark" | "system" };
   exportedAt: string;
   categories: Category[];
   folders: Folder[];
@@ -75,7 +76,7 @@ export function validateAnnotations(
 }
 export function parseBackup(input: unknown): Backup {
   const root = obj(input);
-  if (root.format !== "my-memo" || root.version !== 1) bad();
+  if (root.format !== "my-memo" || ![1, 2].includes(root.version as number)) bad();
   const categories = arr(root.categories, 100).map((v) => {
     const c = obj(v);
     return {
@@ -93,6 +94,7 @@ export function parseBackup(input: unknown): Backup {
       categoryId: id(f.categoryId),
       name: str(f.name),
       order: num(f.order, 0, 1000000),
+      ...(f.deletedAt === undefined ? {} : { deletedAt: date(f.deletedAt) }),
     };
   });
   const notes = arr(root.notes).map((v) => {
@@ -103,6 +105,12 @@ export function parseBackup(input: unknown): Backup {
       folderId: id(n.folderId),
       title: str(n.title),
       body: str(n.body),
+      ...(n.deletedAt === undefined ? {} : { deletedAt: date(n.deletedAt) }),
+      todos: arr(n.todos === undefined ? [] : n.todos, 10000).map(v => {
+        const t = obj(v);
+        if (typeof t.done !== "boolean") bad();
+        return { id: id(t.id), text: str(t.text), done: t.done as boolean };
+      }),
       tags: tags(n.tags),
       createdAt: date(n.createdAt),
       updatedAt: date(n.updatedAt),
@@ -143,14 +151,23 @@ export function parseBackup(input: unknown): Backup {
     )
       bad();
     unique(n.links);
+    unique(n.todos);
+    if (!n.deletedAt && folders.find(f => f.id === n.folderId)?.deletedAt) bad();
   }
   for (const a of attachments) {
     if (!notes.some((n) => n.id === a.noteId)) bad();
     unique(a.annotations);
   }
+  let preferences: Backup["preferences"];
+  if (root.preferences !== undefined) {
+    const theme = obj(root.preferences).theme;
+    if (!["light", "dark", "system"].includes(theme as string)) bad();
+    preferences = { theme: theme as "light" | "dark" | "system" };
+  }
   return {
     format: "my-memo",
-    version: 1,
+    version: 2,
+    preferences,
     exportedAt: date(root.exportedAt),
     categories,
     folders,
@@ -165,7 +182,8 @@ export async function exportBackup() {
     attachments.push({ ...a, dataUrl: await blobToDataUrl(blob) });
   const text = JSON.stringify({
     format: "my-memo",
-    version: 1,
+    version: 2,
+    preferences: { theme: readTheme() },
     exportedAt: new Date().toISOString(),
     ...data,
     attachments,
@@ -201,6 +219,7 @@ export async function readBackup(file: File) {
     attachments.push({ ...a, blob });
   }
   return {
+    preferences: backup.preferences,
     categories: backup.categories,
     folders: backup.folders,
     notes: backup.notes,
@@ -211,4 +230,18 @@ export async function restoreBackup(
   data: Awaited<ReturnType<typeof readBackup>>,
 ) {
   await replaceAll(data);
+  if (data.preferences) {
+    try { localStorage.setItem("my-memo-theme", data.preferences.theme); }
+    catch { throw Error("メモは復元しましたが、表示テーマを保存できませんでした。設定で選択してください。"); }
+  }
+  try {
+    for (const key of Object.keys(localStorage)) if (key.startsWith("my-memo-draft:")) localStorage.removeItem(key);
+  } catch { /* Draft recovery also compares timestamps and note identity. */ }
+}
+
+export function readTheme(): "light" | "dark" | "system" {
+  try {
+    const value = localStorage.getItem("my-memo-theme");
+    return value === "light" || value === "dark" ? value : "system";
+  } catch { return "system"; }
 }

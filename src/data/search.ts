@@ -32,6 +32,7 @@ export function searchNotes(notes: Note[], query: string) {
       n.title,
       n.body,
       ...n.tags,
+      ...(n.todos || []).map(t => t.text),
       ...n.links.flatMap((l) => [l.title, l.url, ...l.tags]),
     ]
       .join(" ")

@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import type { Category, Folder, Note } from "../data/model";
 import { saveNote } from "../data/repository";
+import Checklist from "./Checklist";
+import { writeDraft, clearSavedDraft, recoverDraft } from "../data/drafts";
 import Images from "./Images";
 import { safeUrl, parseTags } from "../data/search";
 export default function Editor({
@@ -27,7 +29,9 @@ export default function Editor({
   onSaved: () => void;
   onDelete: (id: string) => Promise<void>;
 }) {
-  const [note, setNote] = useState(initial),
+  const [recovered] = useState(() => recoverDraft(initial, folders)),
+    [draftWarning, setDraftWarning] = useState(""),
+    [note, setNote] = useState(recovered || initial),
     [status, setStatus] = useState("保存済み"),
     [error, setError] = useState(""),
     [linkError, setLinkError] = useState(""),
@@ -36,8 +40,9 @@ export default function Editor({
     [url, setUrl] = useState(""),
     [linkTitle, setLinkTitle] = useState(""),
     [linkTags, setLinkTags] = useState("");
-  const current = useRef(note),
-    dirty = useRef(false),
+  const base = useRef(initial),
+    current = useRef(note),
+    dirty = useRef(!!recovered),
     pending = useRef(0),
     queue = useRef(Promise.resolve()),
     timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined),
@@ -54,6 +59,11 @@ export default function Editor({
           const value = current.current;
           dirty.current = false;
           await saveNote(value);
+          base.current = value;
+          try {
+            clearSavedDraft(value);
+            if (dirty.current) writeDraft(current.current, value);
+          } catch { setDraftWarning("下書きの一時保存を更新できません。保存済みの表示を確認してください。"); }
           onSaved();
         }
         setStatus("保存済み");
@@ -80,6 +90,8 @@ export default function Editor({
     current.current = next;
     setNote(next);
     dirty.current = true;
+    try { writeDraft(next, base.current); setDraftWarning(""); }
+    catch { setDraftWarning("下書きを一時保存できません。画面を閉じる前に「保存済み」を確認してください。"); }
     setStatus("未保存");
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
@@ -87,6 +99,7 @@ export default function Editor({
     }, 500);
   }
   useEffect(() => {
+    if (recovered) void persist();
     const hide = () => {
       if (document.visibilityState === "hidden") void persist();
     };
@@ -154,10 +167,11 @@ export default function Editor({
           className="icon-button danger"
           disabled={busy || imageBusy}
           onClick={async () => {
-            if (!confirm("このメモを削除しますか？ 元に戻せません。")) return;
+            if (!confirm("このメモをごみ箱へ移しますか？ 画像や注釈も後から復元できます。")) return;
             setBusy(true);
             clearTimeout(timer.current);
-            await queue.current;
+            await persist();
+            if (dirty.current) { setBusy(false); return; }
             try {
               await onDelete(note.id);
             } finally {
@@ -174,6 +188,8 @@ export default function Editor({
           <button onClick={() => void persist()}>保存を再試行</button>
         </div>
       )}
+      {recovered && <p className="fine-print">前回の未保存の下書きを復元しました。</p>}
+      {draftWarning && <p role="alert" className="error">{draftWarning}</p>}
       <fieldset disabled={busy} className="editor-paper">
         <div className="location-fields">
           <label>
@@ -244,6 +260,7 @@ export default function Editor({
             onChange={(e) => change({ tags: parseTags(e.target.value) })}
           />
         </label>
+        <Checklist items={note.todos || []} onChange={todos => change({ todos })} />
         <Images
           noteId={note.id}
           onBusy={setImageBusy}

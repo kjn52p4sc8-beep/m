@@ -9,7 +9,9 @@ export interface Folder {
   categoryId: string;
   name: string;
   order: number;
+  deletedAt?: string;
 }
+export interface TodoItem { id: string; text: string; done: boolean; }
 export interface VideoLink {
   id: string;
   title: string;
@@ -26,6 +28,8 @@ export interface Note {
   categoryId: string;
   folderId: string;
   links: VideoLink[];
+  todos?: TodoItem[];
+  deletedAt?: string;
 }
 export const categories: Category[] = [
   {

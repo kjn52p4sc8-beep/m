@@ -1,8 +1,11 @@
 import { FileText, ChevronRight, NotebookPen, Plus } from "lucide-react";
 import type { Note, Category, Folder } from "../data/model";
+import Highlight from "./Highlight";
+import { excerpt } from "../data/highlight";
 import NoteThumbnail from "./NoteThumbnail";
 export default function NoteList({
   notes,
+  query = "",
   categories,
   folders,
   onOpen,
@@ -11,6 +14,7 @@ export default function NoteList({
   empty,
 }: {
   notes: Note[];
+  query?: string;
   categories: Category[];
   folders: Folder[];
   onOpen: (note: Note) => void;
@@ -26,14 +30,14 @@ export default function NoteList({
           <button className="note-row" key={n.id} onClick={() => onOpen(n)}>
             <NoteThumbnail noteId={n.id} updatedAt={n.updatedAt} />
             <span className="note-summary">
-              <strong>{n.title || "無題のメモ"}</strong>
+              <strong><Highlight text={n.title || "無題のメモ"} query={query} /></strong>
               <span>
-                {n.body.trim().split("\n")[0] || "自由にメモを書き始めましょう"}
+                <Highlight text={excerpt(query ? [n.body, ...(n.todos || []).map(t => t.text), ...n.links.flatMap(l => [l.title, l.url, ...l.tags])].join(" ") : n.body, query) || "自由にメモを書き始めましょう"} query={query} />
               </span>
               <small>
                 <b className={`category-badge ${c?.color}`}>{c?.name}</b>{" "}
                 <span className="note-folder">{folders.find((f) => f.id === n.folderId)?.name}</span>{" "}
-                {n.tags.map(t => <span className="tag-pill" key={t}>#{t}</span>)}
+                {n.tags.map(t => <span className="tag-pill" key={t}>#<Highlight text={t} query={query} /></span>)}
               </small>
               <time className="note-updated" dateTime={n.updatedAt}>
                 {new Date(n.updatedAt).toLocaleString("ja-JP", {month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit"})}
