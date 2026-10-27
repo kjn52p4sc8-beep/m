@@ -77,6 +77,28 @@ body { background: var(--background); color: var(--ink); }
 .search-filters select { width: 65%; }
 mark { color: var(--ink); background: #f4e8b5; border-radius: 2px; }
 .dark mark { background: #5f5326; }
+.character-count { font-size: 12px; color: var(--muted); text-align: right; margin-block: 6px 12px; }
+.text-tools summary { min-height: 44px; cursor: pointer; padding: 10px 0; font-size: 14px; color: var(--accent); }
+.text-tool-fields { padding: 14px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 14px; }
+.text-tool-fields label { display: grid; gap: 6px; margin-bottom: 12px; font-size: 14px; }
+.table-scroll { overflow-x: auto; max-width: 100%; border: 1px solid var(--line); border-radius: 8px; }
+.table-scroll table { border-collapse: collapse; min-width: 100%; }
+.table-scroll td { border: 1px solid var(--line); padding: 0; }
+.table-scroll input { width: 130px; min-width: 100px; border: 0; border-radius: 0; }
+.table-scroll tr:first-child input { font-weight: 650; background: var(--hover); }
+.table-editor { min-width: 0; margin: 16px 0 24px; }
+.table-editor .section-heading>input { flex: 1; width: 0; }
+.table-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
+.table-actions button { color: var(--accent); padding: 6px 8px; font-size: 13px; }
+.recordings { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 24px; }
+.recordings h3 { display: flex; align-items: center; gap: 8px; }
+.recording-row { display: flex; align-items: center; gap: 8px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+.audio-player { min-width: 0; flex: 1; }
+.audio-player strong { display: block; font-size: 14px; overflow-wrap: anywhere; }
+.audio-player small { display: block; font-size: 12px; color: var(--muted); margin: 6px 0; }
+.audio-player audio { width: 100%; max-width: 100%; }
+.audio-player p,.audio-draft p { font-size: 13px; line-height: 1.7; }
+.audio-draft { padding: 12px; background: var(--hover); border-radius: 10px; }
 @media (max-width:760px), (pointer:coarse) and (max-width:1024px) {
   .topbar { height: calc(80px + var(--safe-top)); padding-inline: max(20px,var(--safe-left)) max(20px,var(--safe-right)); }
   .mobile-brand { font-size: 30px; gap: 10px; font-weight: 700; }

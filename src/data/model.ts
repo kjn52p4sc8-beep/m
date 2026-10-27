@@ -12,6 +12,7 @@ export interface Folder {
   deletedAt?: string;
 }
 export interface TodoItem { id: string; text: string; done: boolean; }
+export interface NoteTable { id: string; title: string; rows: string[][]; }
 export interface VideoLink {
   id: string;
   title: string;
@@ -29,6 +30,7 @@ export interface Note {
   folderId: string;
   links: VideoLink[];
   todos?: TodoItem[];
+  tables?: NoteTable[];
   deletedAt?: string;
 }
 export const categories: Category[] = [
@@ -90,4 +92,13 @@ export interface Attachment {
   height: number;
   createdAt: string;
   annotations: Annotation[];
+}
+export interface Recording {
+  id: string;
+  noteId: string;
+  name: string;
+  blob: Blob;
+  mimeType: string;
+  durationSeconds: number;
+  createdAt: string;
 }

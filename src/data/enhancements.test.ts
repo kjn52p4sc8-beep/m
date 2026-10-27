@@ -40,8 +40,8 @@ it("roundtrips tasks and trash in a versioned backup without reviving deleted no
   const n = {...newNote(await quickFolder()),todos:[{id:"t",text:"確認する",done:false}]}; await saveNote(n);
   await toggleTodo(n.id,"t",true); await removeNote(n.id);
   const raw=JSON.parse(await (await exportBackup()).text()); const parsed=parseBackup(raw);
-  expect(parsed.version).toBe(2); expect(parsed.notes[0].todos?.[0].done).toBe(true);
-  await replaceAll({...parsed,attachments:[]}); expect((await snapshot()).notes).toHaveLength(0); expect((await snapshot()).trash).toHaveLength(1);
+  expect(parsed.version).toBe(3); expect(parsed.notes[0].todos?.[0].done).toBe(true);
+  await replaceAll({...parsed,attachments:[],recordings:[]}); expect((await snapshot()).notes).toHaveLength(0); expect((await snapshot()).trash).toHaveLength(1);
 });
 it("rejects invalid tasks and preferences before any data is changed", async () => {
   const n=newNote(await quickFolder()); await saveNote(n);

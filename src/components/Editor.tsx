@@ -11,6 +11,9 @@ import {
 import type { Category, Folder, Note } from "../data/model";
 import { saveNote } from "../data/repository";
 import Checklist from "./Checklist";
+import TextTools from "./TextTools";
+import TableEditor from "./TableEditor";
+import Recordings from "./Recordings";
 import { writeDraft, clearSavedDraft, recoverDraft } from "../data/drafts";
 import Images from "./Images";
 import { safeUrl, parseTags } from "../data/search";
@@ -37,10 +40,13 @@ export default function Editor({
     [linkError, setLinkError] = useState(""),
     [linkForm, setLinkForm] = useState(false),
     [imageBusy, setImageBusy] = useState(false),
+    [audioBusy, setAudioBusy] = useState(false),
     [url, setUrl] = useState(""),
     [linkTitle, setLinkTitle] = useState(""),
     [linkTags, setLinkTags] = useState("");
   const base = useRef(initial),
+    titleInput = useRef<HTMLInputElement>(null),
+    bodyInput = useRef<HTMLTextAreaElement>(null),
     current = useRef(note),
     dirty = useRef(!!recovered),
     pending = useRef(0),
@@ -152,7 +158,7 @@ export default function Editor({
       <div className="editor-toolbar">
         <button
           onClick={() => void close()}
-          disabled={busy || imageBusy}
+          disabled={busy || imageBusy || audioBusy}
           className="text-button"
         >
           <ArrowLeft size={18} />
@@ -165,7 +171,7 @@ export default function Editor({
         <button
           aria-label="メモを削除"
           className="icon-button danger"
-          disabled={busy || imageBusy}
+          disabled={busy || imageBusy || audioBusy}
           onClick={async () => {
             if (!confirm("このメモをごみ箱へ移しますか？ 画像や注釈も後から復元できます。")) return;
             setBusy(true);
@@ -232,6 +238,7 @@ export default function Editor({
         </div>
         <input
           className="note-title-input"
+          ref={titleInput}
           aria-label="タイトル"
           placeholder="タイトルを入力"
           value={note.title}
@@ -246,11 +253,13 @@ export default function Editor({
         </div>
         <textarea
           className="note-body-input"
+          ref={bodyInput}
           aria-label="本文"
           placeholder="思いついたことを、自由に書いてみましょう。"
           value={note.body}
           onChange={(e) => change({ body: e.target.value })}
         />
+        <TextTools title={note.title} body={note.body} titleRef={titleInput} bodyRef={bodyInput} onChange={change} />
         <label className="field">
           タグ{" "}
           <input
@@ -261,6 +270,7 @@ export default function Editor({
           />
         </label>
         <Checklist items={note.todos || []} onChange={todos => change({ todos })} />
+        <TableEditor tables={note.tables || []} onChange={tables => change({ tables })} />
         <Images
           noteId={note.id}
           onBusy={setImageBusy}
@@ -272,6 +282,12 @@ export default function Editor({
             onSaved();
           }}
         />
+        <Recordings noteId={note.id} onBusy={setAudioBusy} onChanged={updatedAt => {
+          if (updatedAt && updatedAt > current.current.updatedAt) {
+            current.current = {...current.current, updatedAt}; setNote(current.current);
+          }
+          onSaved();
+        }} />
         <section className="links-section">
           <div className="section-heading">
             <h3>

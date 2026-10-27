@@ -1,17 +1,20 @@
-import type { Category, Folder, Note, Attachment, Annotation } from "./model";
+import type { Category, Folder, Note, Attachment, Annotation, Recording } from "./model";
 import { backupSnapshot, replaceAll } from "./repository";
 import { blobToDataUrl, decodeImage } from "./images";
 import { safeUrl } from "./search";
+import { AUDIO_TYPES, MAX_AUDIO_BYTES, MAX_AUDIO_SECONDS, validateAudio } from "./audio";
+import { validateTables } from "./tables";
 export const MAX_BACKUP_BYTES = 100 * 1024 * 1024;
 type Backup = {
   format: "my-memo";
-  version: 2;
+  version: 3;
   preferences?: { theme: "light" | "dark" | "system" };
   exportedAt: string;
   categories: Category[];
   folders: Folder[];
   notes: Note[];
   attachments: (Omit<Attachment, "blob"> & { dataUrl: string })[];
+  recordings: (Omit<Recording, "blob"> & { dataUrl: string })[];
 };
 const bad = () => {
   throw Error("バックアップの形式・内容が不正、または非対応のバージョンです。");
@@ -76,7 +79,7 @@ export function validateAnnotations(
 }
 export function parseBackup(input: unknown): Backup {
   const root = obj(input);
-  if (root.format !== "my-memo" || ![1, 2].includes(root.version as number)) bad();
+  if (root.format !== "my-memo" || ![1, 2, 3].includes(root.version as number)) bad();
   const categories = arr(root.categories, 100).map((v) => {
     const c = obj(v);
     return {
@@ -105,6 +108,7 @@ export function parseBackup(input: unknown): Backup {
       folderId: id(n.folderId),
       title: str(n.title),
       body: str(n.body),
+      tables: validateTables(n.tables),
       ...(n.deletedAt === undefined ? {} : { deletedAt: date(n.deletedAt) }),
       todos: arr(n.todos === undefined ? [] : n.todos, 10000).map(v => {
         const t = obj(v);
@@ -142,7 +146,13 @@ export function parseBackup(input: unknown): Backup {
       dataUrl,
     };
   });
-  for (const items of [categories, folders, notes, attachments]) unique(items);
+  const recordings = arr(root.recordings === undefined && root.version !== 3 ? [] : root.recordings).map(v => {
+    const r = obj(v), mimeType = str(r.mimeType, 100), dataUrl = str(r.dataUrl, MAX_AUDIO_BYTES * 2);
+    if (!AUDIO_TYPES.includes(mimeType) || !dataUrl.startsWith(`data:${mimeType};base64,`) || !/^data:audio\/(mp4|webm|ogg);base64,[A-Za-z0-9+/]+={0,2}$/.test(dataUrl)) bad();
+    return { id:id(r.id), noteId:id(r.noteId), name:str(r.name,1000), mimeType, dataUrl, durationSeconds:num(r.durationSeconds,0,MAX_AUDIO_SECONDS+10), createdAt:date(r.createdAt) };
+  });
+  for (const items of [categories, folders, notes, attachments, recordings]) unique(items);
+  for (const r of recordings) if (!notes.some(n => n.id === r.noteId)) bad();
   for (const f of folders)
     if (!categories.some((c) => c.id === f.categoryId)) bad();
   for (const n of notes) {
@@ -166,13 +176,14 @@ export function parseBackup(input: unknown): Backup {
   }
   return {
     format: "my-memo",
-    version: 2,
+    version: 3,
     preferences,
     exportedAt: date(root.exportedAt),
     categories,
     folders,
     notes,
     attachments,
+    recordings,
   };
 }
 export async function exportBackup() {
@@ -180,18 +191,21 @@ export async function exportBackup() {
   const attachments = [];
   for (const { blob, ...a } of data.attachments)
     attachments.push({ ...a, dataUrl: await blobToDataUrl(blob) });
+  const recordings = [];
+  for (const {blob, ...r} of data.recordings) recordings.push({...r, dataUrl: await blobToDataUrl(blob)});
   const text = JSON.stringify({
     format: "my-memo",
-    version: 2,
+    version: 3,
     preferences: { theme: readTheme() },
     exportedAt: new Date().toISOString(),
     ...data,
     attachments,
+    recordings,
   });
   const blob = new Blob([text], { type: "application/json" });
   if (blob.size > MAX_BACKUP_BYTES)
     throw Error(
-      "バックアップが100MBを超えています。不要な画像を整理してください。",
+      "バックアップが100MBを超えています。不要な添付データを整理してください。",
     );
   return blob;
 }
@@ -218,12 +232,20 @@ export async function readBackup(file: File) {
       bad();
     attachments.push({ ...a, blob });
   }
+  const recordings: Recording[] = [];
+  for (const {dataUrl, ...r} of backup.recordings) {
+    const binary = atob(dataUrl.split(",")[1]);
+    const blob = new Blob([Uint8Array.from(binary,c=>c.charCodeAt(0))], {type:r.mimeType});
+    await validateAudio(blob, r.mimeType);
+    recordings.push({...r, blob});
+  }
   return {
     preferences: backup.preferences,
     categories: backup.categories,
     folders: backup.folders,
     notes: backup.notes,
     attachments,
+    recordings,
   };
 }
 export async function restoreBackup(

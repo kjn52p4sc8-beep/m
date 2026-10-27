@@ -1,7 +1,8 @@
 import type { Note, Folder } from "./model";
 import { safeUrl } from "./search";
+import { validateTables } from "./tables";
 const key = (id: string) => `my-memo-draft:${id}`;
-const content = (n: Note) => JSON.stringify([n.title,n.body,n.tags,n.links,n.todos || [],n.folderId,n.categoryId]);
+const content = (n: Note) => JSON.stringify([n.title,n.body,n.tags,n.links,n.todos || [],n.tables || [],n.folderId,n.categoryId]);
 export function writeDraft(note: Note, base: Note) {
   localStorage.setItem(key(note.id), JSON.stringify({ version: 1, base: content(base), note }));
 }
@@ -19,6 +20,7 @@ export function recoverDraft(initial: Note, folders: Folder[]) {
     if (!n.links.every(l => typeof l.id === "string" && typeof l.title === "string" && safeUrl(l.url) && Array.isArray(l.tags) && l.tags.every(t => typeof t === "string"))) return null;
     if (n.todos && (!Array.isArray(n.todos) || !n.todos.every(t => typeof t.id === "string" && typeof t.text === "string" && typeof t.done === "boolean"))) return null;
     const folder = folders.find(f => f.id === n.folderId && f.categoryId === n.categoryId && !f.deletedAt);
+    validateTables(n.tables);
     return { ...initial, ...n, folderId: folder?.id || initial.folderId, categoryId: folder?.categoryId || initial.categoryId, createdAt: initial.createdAt, updatedAt: new Date().toISOString() };
   } catch { return null; }
 }

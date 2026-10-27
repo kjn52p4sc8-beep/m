@@ -32,7 +32,7 @@ export default function NoteList({
             <span className="note-summary">
               <strong><Highlight text={n.title || "無題のメモ"} query={query} /></strong>
               <span>
-                <Highlight text={excerpt(query ? [n.body, ...(n.todos || []).map(t => t.text), ...n.links.flatMap(l => [l.title, l.url, ...l.tags])].join(" ") : n.body, query) || "自由にメモを書き始めましょう"} query={query} />
+                <Highlight text={excerpt(query ? [n.body, ...(n.todos || []).map(t => t.text), ...(n.tables || []).flatMap(t=>[t.title,...t.rows.flat()]), ...n.links.flatMap(l => [l.title, l.url, ...l.tags])].join(" ") : n.body, query) || "自由にメモを書き始めましょう"} query={query} />
               </span>
               <small>
                 <b className={`category-badge ${c?.color}`}>{c?.name}</b>{" "}

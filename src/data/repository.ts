@@ -7,12 +7,15 @@ import {
   type Note,
   type Attachment,
   type Annotation,
+  type Recording,
 } from "./model";
+import { validateAudio, MAX_AUDIO_SECONDS } from "./audio";
 export class MemoDatabase extends Dexie {
   categories!: Table<Category, string>;
   folders!: Table<Folder, string>;
   notes!: Table<Note, string>;
   attachments!: Table<Attachment, string>;
+  recordings!: Table<Recording, string>;
   constructor(name = "my-memo") {
     super(name);
     this.version(1).stores({
@@ -26,6 +29,7 @@ export class MemoDatabase extends Dexie {
       folders: "id, categoryId, order, deletedAt",
       notes: "id, categoryId, folderId, updatedAt, deletedAt",
     });
+    this.version(4).stores({ recordings: "id, noteId, createdAt" });
   }
 }
 export const db = new MemoDatabase();
@@ -131,9 +135,10 @@ export async function restoreNote(id: string) {
   });
 }
 export async function permanentlyDeleteNote(id: string) {
-  await db.transaction("rw", db.notes, db.attachments, async () => {
+  await db.transaction("rw", db.notes, db.attachments, db.recordings, async () => {
     if (!(await db.notes.get(id))?.deletedAt) throw Error("完全削除はごみ箱から行ってください。");
     await db.attachments.where("noteId").equals(id).delete();
+    await db.recordings.where("noteId").equals(id).delete();
     await db.notes.delete(id);
   });
 }
@@ -217,11 +222,13 @@ export async function backupSnapshot() {
     db.folders,
     db.notes,
     db.attachments,
+    db.recordings,
     async () => ({
       categories: await db.categories.toArray(),
       folders: await db.folders.toArray(),
       notes: await db.notes.toArray(),
       attachments: await db.attachments.toArray(),
+      recordings: await db.recordings.toArray(),
     }),
   );
 }
@@ -234,21 +241,46 @@ export async function replaceAll(
     db.folders,
     db.notes,
     db.attachments,
+    db.recordings,
     async () => {
       await Promise.all([
         db.categories.clear(),
         db.folders.clear(),
         db.notes.clear(),
         db.attachments.clear(),
+        db.recordings.clear(),
       ]);
       await db.categories.bulkAdd(data.categories);
       await db.folders.bulkAdd(data.folders);
       await db.notes.bulkAdd(data.notes);
       await db.attachments.bulkAdd(data.attachments);
+      await db.recordings.bulkAdd(data.recordings);
     },
   );
 }
 
 export async function getNote(id: string) {
   return db.notes.get(id);
+}
+export function listRecordings(noteId: string) {
+  return db.recordings.where("noteId").equals(noteId).sortBy("createdAt");
+}
+export async function saveRecording(recording: Recording) {
+  await validateAudio(recording.blob, recording.mimeType);
+  if (!Number.isFinite(recording.durationSeconds) || recording.durationSeconds < 0 || recording.durationSeconds > MAX_AUDIO_SECONDS + 10)
+    throw Error("録音時間が上限を超えています。");
+  await db.transaction("rw", db.notes, db.recordings, async () => {
+    const note = await db.notes.get(recording.noteId);
+    if (!note || note.deletedAt) throw Error("保存先のメモがありません。");
+    await db.recordings.put(recording);
+    await db.notes.update(note.id, {updatedAt:new Date().toISOString()});
+  });
+}
+export async function removeRecording(id: string) {
+  await db.transaction("rw", db.notes, db.recordings, async () => {
+    const recording = await db.recordings.get(id);
+    if (!recording) return;
+    await db.recordings.delete(id);
+    await db.notes.update(recording.noteId, {updatedAt:new Date().toISOString()});
+  });
 }

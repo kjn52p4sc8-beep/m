@@ -96,7 +96,7 @@ export default function DataSettings({
         </button>
       </div>
       <p className="fine-print">
-        JSONには本文・画像・編集可能な注釈が含まれます（最大100MB）。暗号化されないため保管先にご注意ください。
+        JSONには本文・ToDo・表・画像・録音・注釈・ごみ箱・テーマが含まれます（最大100MB）。暗号化されないため保管先にご注意ください。
       </p>
       {busy && <p role="status">処理しています…</p>}
       {message && <p role="status">{message}</p>}
@@ -114,11 +114,12 @@ export default function DataSettings({
         >
           <h2>すべてのデータを置き換えますか？</h2>
           <p>
-            現在のメモ・画像・フォルダは削除され、バックアップの内容に置き換わります。必要なデータを先にバックアップしてください。
+            現在のメモ・画像・録音・ごみ箱・フォルダは、バックアップの内容に置き換わります。必要なデータを先にバックアップしてください。
           </p>
           <p>
             {pending.notes.length} メモ / {pending.attachments.length} 画像 /{" "}
             {pending.folders.length} フォルダ
+            {" / "}{pending.recordings.length} 録音
           </p>
           <div className="settings-actions">
             <button
