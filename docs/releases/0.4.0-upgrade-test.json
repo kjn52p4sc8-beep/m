@@ -1,0 +1,17 @@
+{
+  "passed": true,
+  "oldCommit": "32dc816e18c983632d49b55022d93dd7a770fa36",
+  "newCommit": "da8720d011045f60cecba08e16ee9977d4ce444c",
+  "oldDatabaseVersion": 20,
+  "newDatabaseVersion": 50,
+  "preserved": [
+    "note IDs/text/tags/dates",
+    "folder IDs/order",
+    "categories",
+    "image SHA256",
+    "image annotations",
+    "dark theme"
+  ],
+  "offlineSaveAndRestart": true,
+  "pageErrors": []
+}
