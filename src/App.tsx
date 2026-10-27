@@ -1,3 +1,5 @@
+import { emptyTrip } from "./data/finance";
+import Tutorial from "./components/Tutorial";
 import { useEffect, useState, useRef } from "react";
 import { installViewportTracking } from "./platform/viewport";
 import { useScreenScroll } from "./platform/useScreenScroll";
@@ -28,6 +30,7 @@ import {
 } from "lucide-react";
 import { type Category, type Folder, type Note } from "./data/model";
 import {
+  markOpened,
   initialize,
   snapshot,
   addFolder,
@@ -87,6 +90,9 @@ export default function App() {
       }
     }),
     [newDialog, setNewDialog] = useState(false);
+  const [typeDialog, setTypeDialog] = useState(false),
+    [sharingInfo, setSharingInfo] = useState(false),
+    [tutorial, setTutorial] = useState(false);
   const createLock = useRef(false);
   useEffect(installViewportTracking, []);
   useScreenScroll(
@@ -99,7 +105,16 @@ export default function App() {
   }
   useEffect(() => {
     initialize()
-      .then(refresh)
+      .then(async () => {
+        await refresh();
+        try {
+          if (
+            !localStorage.getItem("my-memo-tutorial") &&
+            !(await snapshot()).notes.length
+          )
+            setTutorial(true);
+        } catch {}
+      })
       .catch(() =>
         setError(
           "データを読み込めませんでした。ブラウザの保存設定を確認して再読み込みしてください。",
@@ -114,7 +129,7 @@ export default function App() {
       document.documentElement.classList.toggle("dark", dark);
       document
         .querySelector('meta[name="theme-color"]')
-        ?.setAttribute("content", dark ? "#171d19" : "#faf9f6");
+        ?.setAttribute("content", dark ? "#171d19" : "#ffffff");
     };
     apply();
     media.addEventListener("change", apply);
@@ -134,12 +149,23 @@ export default function App() {
       );
     }
   }
-  async function create(folder: Folder) {
+  async function create(
+    folder: Folder,
+    kind: "normal" | "trip" | "loans" = "normal",
+  ) {
     if (createLock.current) return;
     createLock.current = true;
     setCreating(true);
     try {
       const note = newNote(folder);
+      if (kind === "trip") {
+        note.trip = emptyTrip();
+        note.title = "新しい旅行";
+      }
+      if (kind === "loans") {
+        note.loans = [];
+        note.title = "貸し借りの記録";
+      }
       await saveNote(note);
       await refresh();
       setEditing(note);
@@ -147,6 +173,7 @@ export default function App() {
         localStorage.setItem("my-memo-last-folder", folder.id);
       } catch {}
       setNewDialog(false);
+      setTypeDialog(false);
     } catch {
       setError("メモを作成できませんでした。もう一度お試しください。");
     } finally {
@@ -154,7 +181,7 @@ export default function App() {
       createLock.current = false;
     }
   }
-  async function quickCreate() {
+  async function quickCreate(kind: "normal" | "trip" | "loans" = "normal") {
     if (creating || createLock.current) return;
     try {
       let last = "";
@@ -162,10 +189,16 @@ export default function App() {
         last = localStorage.getItem("my-memo-last-folder") || "";
       } catch {}
       const folder = await quickFolder(
-        view === "category" ? categoryId : homeCategory || undefined,
+        kind === "trip"
+          ? "life"
+          : kind === "loans"
+            ? "money"
+            : view === "category"
+              ? categoryId
+              : homeCategory || undefined,
         folderId || last,
       );
-      await create(folder);
+      await create(folder, kind);
     } catch {
       setError("メモを作成できませんでした。再試行してください。");
     }
@@ -188,15 +221,23 @@ export default function App() {
       (n) =>
         n.categoryId === categoryId && (!folderId || n.folderId === folderId),
     );
-  const homeNotes = data.notes.filter(
-    (n) => !homeCategory || n.categoryId === homeCategory,
-  );
+  const homeNotes = data.notes
+    .filter((n) => !homeCategory || n.categoryId === homeCategory)
+    .sort((a, b) =>
+      (b.lastOpenedAt || b.updatedAt).localeCompare(
+        a.lastOpenedAt || a.updatedAt,
+      ),
+    );
   const searchResults = searchNotes(data.notes, query).filter(
     (n) =>
       (!filterCategory || n.categoryId === filterCategory) &&
       (!filterFolder || n.folderId === filterFolder) &&
       (!filterTag || n.tags.includes(filterTag)),
   );
+  function openNote(note: Note) {
+    setEditing(note);
+    void action(() => markOpened(note.id));
+  }
   function noteList(notes: Note[], empty = "まだメモがありません") {
     return (
       <NoteList
@@ -204,7 +245,7 @@ export default function App() {
         query={view === "search" ? query : ""}
         categories={data.categories}
         folders={data.folders}
-        onOpen={setEditing}
+        onOpen={openNote}
         onCreate={() => setNewDialog(true)}
         searching={view === "search"}
         empty={empty}
@@ -349,6 +390,7 @@ export default function App() {
             <>
               {view === "home" && (
                 <>
+                  {tutorial && <Tutorial onClose={() => setTutorial(false)} />}
                   <button
                     className="search-launch"
                     aria-label="メモ、タグ、リンクを検索 検索"
@@ -413,10 +455,18 @@ export default function App() {
                     compact
                     notes={homeNotes}
                     categories={data.categories}
-                    onOpen={setEditing}
+                    onOpen={openNote}
                     onToggle={(n, t, d) => action(() => toggleTodo(n, t, d))}
                     onShowAll={() => go("todo")}
                   />
+                  {homeNotes.some((n) => n.favorite) && (
+                    <section aria-label="お気に入りのメモ">
+                      <h2>お気に入り</h2>
+                      {noteList(
+                        homeNotes.filter((n) => n.favorite).slice(0, 5),
+                      )}
+                    </section>
+                  )}
                   <div className="section-heading recent-heading">
                     <h2>
                       最近のメモ{" "}
@@ -424,7 +474,13 @@ export default function App() {
                     </h2>
                     <button
                       className="text-button"
-                      onClick={() => go("search")}
+                      onClick={() => {
+                        setQuery("");
+                        setFilterCategory(homeCategory);
+                        setFilterFolder("");
+                        setFilterTag("");
+                        go("search");
+                      }}
                     >
                       すべて見る
                       <ChevronRight size={15} />
@@ -702,7 +758,7 @@ export default function App() {
                   <TodoPanel
                     notes={data.notes}
                     categories={data.categories}
-                    onOpen={setEditing}
+                    onOpen={openNote}
                     onToggle={(n, t, d) => action(() => toggleTodo(n, t, d))}
                   />
                 </>
@@ -717,6 +773,21 @@ export default function App() {
               {view === "settings" && (
                 <>
                   <h1>設定</h1>
+                  <div className="settings-actions">
+                    <button
+                      className="text-button"
+                      onClick={() => setTutorial(!tutorial)}
+                    >
+                      使い方を見る
+                    </button>
+                    <button
+                      className="text-button"
+                      onClick={() => setSharingInfo(true)}
+                    >
+                      共有・ログインについて
+                    </button>
+                  </div>
+                  {tutorial && <Tutorial onClose={() => setTutorial(false)} />}
                   <section className="settings-card">
                     <h2>
                       <Moon size={20} />
@@ -768,7 +839,7 @@ export default function App() {
                     <p>
                       クラウド同期は未対応です。データはこの端末内に保存されます。
                     </p>
-                    <small>My Memo 0.3.0</small>
+                    <small>My Memo 0.4.0</small>
                   </section>
                 </>
               )}
@@ -776,6 +847,15 @@ export default function App() {
           )}
         </main>
       </div>
+      {!editing && !loading && (
+        <button
+          className="floating-types"
+          aria-label="作成メニューを開く"
+          onClick={() => setTypeDialog(true)}
+        >
+          種類
+        </button>
+      )}
       {!editing && !loading && (
         <button
           className="floating-create"
@@ -821,6 +901,69 @@ export default function App() {
       <div className="keyboard-bar">
         <KeyboardDismiss />
       </div>
+      {typeDialog && (
+        <Modal label="新規作成" onClose={() => setTypeDialog(false)}>
+          <div className="section-heading">
+            <h2>新規作成</h2>
+            <button
+              className="icon-button"
+              aria-label="閉じる"
+              onClick={() => setTypeDialog(false)}
+            >
+              <X />
+            </button>
+          </div>
+          <div className="create-types">
+            <button disabled={creating} onClick={() => void quickCreate()}>
+              通常メモ
+            </button>
+            <button
+              disabled={creating}
+              onClick={() => void quickCreate("trip")}
+            >
+              旅行予算
+            </button>
+            <button
+              disabled={creating}
+              onClick={() => void quickCreate("loans")}
+            >
+              お金の貸し借り
+            </button>
+            <button
+              onClick={() => {
+                setTypeDialog(false);
+                setSharingInfo(true);
+              }}
+            >
+              共有メモ <small>未設定</small>
+            </button>
+          </div>
+        </Modal>
+      )}
+      {sharingInfo && (
+        <Modal
+          label="共有・ログインについて"
+          onClose={() => setSharingInfo(false)}
+        >
+          <div className="section-heading">
+            <h2>共有・ログイン</h2>
+            <button
+              className="icon-button"
+              aria-label="閉じる"
+              onClick={() => setSharingInfo(false)}
+            >
+              <X />
+            </button>
+          </div>
+          <p>
+            現在はこの端末だけに保存する個人用メモです。ログイン・端末間同期・招待による共有は未実装です。
+          </p>
+          <p>公開URLを渡しても、あなたのメモは相手に表示されません。</p>
+          <p>
+            共有には認証サーバーとアクセス権限の設定が必要です。旅行・貸し借りの情報も、共有機能を導入するまで外部には送信されません。
+          </p>
+        </Modal>
+      )}
       {newDialog && (
         <Modal label="メモの保存先" onClose={() => setNewDialog(false)}>
           <div className="section-heading">

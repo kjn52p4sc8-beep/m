@@ -1,3 +1,5 @@
+import { validateTrip, validateLoans } from "./finance";
+import { validateProductivity } from "./productivity";
 import type { Note, Folder } from "./model";
 import { safeUrl } from "./search";
 import { validateTables } from "./tables";
@@ -10,6 +12,11 @@ const content = (n: Note) =>
     n.links,
     n.todos || [],
     n.tables || [],
+    n.trip,
+    n.loans,
+    n.bodyColors || [],
+    n.characterLimit,
+    n.favorite,
     n.folderId,
     n.categoryId,
   ]);
@@ -32,7 +39,25 @@ export function recoverDraft(initial: Note, folders: Folder[]) {
       n = envelope.note as Note;
     if (
       envelope.version !== 1 ||
-      envelope.base !== content(initial) ||
+      !(
+        envelope.base === content(initial) ||
+        (!initial.bodyColors &&
+          !initial.characterLimit &&
+          !initial.favorite &&
+          !initial.trip &&
+          !initial.loans &&
+          envelope.base ===
+            JSON.stringify([
+              initial.title,
+              initial.body,
+              initial.tags,
+              initial.links,
+              initial.todos || [],
+              initial.tables || [],
+              initial.folderId,
+              initial.categoryId,
+            ]))
+      ) ||
       !n ||
       n.id !== initial.id ||
       n.deletedAt
@@ -73,6 +98,9 @@ export function recoverDraft(initial: Note, folders: Folder[]) {
         f.id === n.folderId && f.categoryId === n.categoryId && !f.deletedAt,
     );
     validateTables(n.tables);
+    validateTrip(n.trip);
+    validateLoans(n.loans);
+    validateProductivity(n as unknown as Record<string, unknown>, n.body);
     return {
       ...initial,
       ...n,

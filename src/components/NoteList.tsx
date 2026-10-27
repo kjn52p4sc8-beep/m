@@ -59,6 +59,9 @@ export default function NoteList({
                 />
               </span>
               <small>
+                {n.favorite && <span aria-label="お気に入り">★</span>}
+                {n.trip && <span className="tag-pill">旅行予算</span>}
+                {n.loans && <span className="tag-pill">貸し借り</span>}
                 <b className={`category-badge ${c?.color}`}>{c?.name}</b>{" "}
                 <span className="note-folder">
                   {folders.find((f) => f.id === n.folderId)?.name}

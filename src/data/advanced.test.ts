@@ -139,3 +139,37 @@ it("recovers only matching-base drafts and never erases a newer in-flight draft"
   clearSavedDraft(draft);
   expect(store.size).toBe(0);
 });
+
+it("recovers pre-extension drafts without discarding their unsaved text", async () => {
+  const note = newNote(await quickFolder());
+  const oldBase = JSON.stringify([
+    note.title,
+    note.body,
+    note.tags,
+    note.links,
+    [],
+    [],
+    note.folderId,
+    note.categoryId,
+  ]);
+  const store = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (k: string) => store.get(k) || null,
+    setItem: (k: string, v: string) => store.set(k, v),
+    removeItem: (k: string) => store.delete(k),
+  });
+  localStorage.setItem(
+    `my-memo-draft:${note.id}`,
+    JSON.stringify({
+      version: 1,
+      base: oldBase,
+      note: { ...note, body: "旧版の未保存の下書き" },
+    }),
+  );
+  expect(recoverDraft(note, await db.folders.toArray())?.body).toBe(
+    "旧版の未保存の下書き",
+  );
+  expect(
+    recoverDraft({ ...note, characterLimit: 400 }, await db.folders.toArray()),
+  ).toBeNull();
+});

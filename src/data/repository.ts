@@ -30,6 +30,10 @@ export class MemoDatabase extends Dexie {
       notes: "id, categoryId, folderId, updatedAt, deletedAt",
     });
     this.version(4).stores({ recordings: "id, noteId, createdAt" });
+    // Optional fields require no rewrite. Version marks support for typed notes/colors.
+    this.version(5).stores({
+      notes: "id, categoryId, folderId, updatedAt, deletedAt, lastOpenedAt",
+    });
   }
 }
 export const db = new MemoDatabase();
@@ -127,6 +131,7 @@ export async function saveNote(note: Note) {
       throw Error("ごみ箱のメモは復元してから編集してください。");
     await db.notes.put({
       ...note,
+      lastOpenedAt: previous?.lastOpenedAt || note.lastOpenedAt,
       updatedAt:
         previous && previous.updatedAt > note.updatedAt
           ? previous.updatedAt
@@ -337,4 +342,8 @@ export async function removeRecording(id: string) {
       updatedAt: new Date().toISOString(),
     });
   });
+}
+
+export async function markOpened(id: string) {
+  await db.notes.update(id, { lastOpenedAt: new Date().toISOString() });
 }

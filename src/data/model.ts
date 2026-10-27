@@ -40,6 +40,12 @@ export interface Note {
   todos?: TodoItem[];
   tables?: NoteTable[];
   deletedAt?: string;
+  trip?: import("./finance").Trip;
+  loans?: import("./finance").Loan[];
+  bodyColors?: import("./productivity").ColorRange[];
+  characterLimit?: number;
+  favorite?: boolean;
+  lastOpenedAt?: string;
 }
 export const categories: Category[] = [
   {

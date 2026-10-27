@@ -159,3 +159,46 @@ test("new service worker shows an update button and preserves data after activat
     );
   }
 });
+
+test("typed budgets, repayments and colored text remain editable offline", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/");
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();
+  await context.setOffline(true);
+  await page.getByRole("button", { name: "作成メニューを開く" }).click();
+  await page.getByRole("button", { name: "旅行予算", exact: true }).click();
+  await page.getByLabel("タイトル", { exact: true }).fill("機内で旅行予算");
+  await page.getByLabel("総予算", { exact: true }).fill("100000");
+  await page.getByRole("button", { name: "予算設定を保存" }).click();
+  await page.getByText("支出を追加", { exact: true }).click();
+  await page.getByLabel("支出金額", { exact: true }).fill("35000");
+  await page.getByRole("button", { name: "支出を保存" }).click();
+  await page.getByLabel("本文", { exact: true }).fill("機内で記録");
+  await page.getByRole("button", { name: "文字色：黒", exact: true }).click();
+  await page.getByRole("button", { name: "青", exact: true }).click();
+  await page.getByLabel("本文", { exact: true }).press("End");
+  await page.getByLabel("本文", { exact: true }).press("!");
+  await page.getByRole("button", { name: "戻る", exact: true }).click();
+  await page.reload();
+  await page.getByRole("button", { name: /機内で旅行予算/ }).click();
+  await expect(page.locator(".finance-summary")).toContainText("￥65,000");
+  await expect(page.locator(".body-color-layer .pen-blue")).toHaveText("!");
+  await page.getByRole("button", { name: "戻る", exact: true }).click();
+  await page.getByRole("button", { name: "作成メニューを開く" }).click();
+  await page
+    .getByRole("button", { name: "お金の貸し借り", exact: true })
+    .click();
+  await page.getByLabel("相手の名前", { exact: true }).fill("家族");
+  await page.getByLabel("金額（円）", { exact: true }).fill("1000");
+  await page.getByRole("button", { name: "貸し借りを保存" }).click();
+  await page.locator("summary").filter({ hasText: "家族" }).click();
+  await page.getByLabel("返済金額", { exact: true }).fill("500");
+  await page.getByRole("button", { name: "返済を記録" }).click();
+  await page.getByRole("button", { name: "戻る", exact: true }).click();
+  await page.reload();
+  await page.getByRole("button", { name: /貸し借りの記録/ }).click();
+  await expect(page.locator(".loan-status")).toContainText("￥500");
+});

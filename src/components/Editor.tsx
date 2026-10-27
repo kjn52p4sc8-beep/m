@@ -10,6 +10,14 @@ import {
 } from "lucide-react";
 import type { Category, Folder, Note } from "../data/model";
 import { saveNote } from "../data/repository";
+import FinanceEditor from "./FinanceEditor";
+import WritingTools from "./WritingTools";
+import {
+  colorParts,
+  editColors,
+  penColors,
+  type PenColor,
+} from "../data/productivity";
 import Checklist from "./Checklist";
 import TextTools from "./TextTools";
 import TableEditor from "./TableEditor";
@@ -44,6 +52,18 @@ export default function Editor({
     [url, setUrl] = useState(""),
     [linkTitle, setLinkTitle] = useState(""),
     [linkTags, setLinkTags] = useState("");
+  const [selection, setSelection] = useState<[number, number]>([0, 0]);
+  const [pen, setPen] = useState<PenColor>(() => {
+    try {
+      const c = localStorage.getItem("my-memo-pen") as PenColor;
+      return penColors.includes(c) ? c : "black";
+    } catch {
+      return "black";
+    }
+  });
+  const [undo, setUndo] = useState<Partial<Note>[]>([]);
+  const beforeSelection = useRef<[number, number] | undefined>(undefined);
+  const colorLayer = useRef<HTMLPreElement>(null);
   const base = useRef(initial),
     titleInput = useRef<HTMLInputElement>(null),
     bodyInput = useRef<HTMLTextAreaElement>(null),
@@ -91,7 +111,26 @@ export default function Editor({
       });
     return queue.current;
   }
-  function change(patch: Partial<Note>) {
+  function change(patch: Partial<Note>, remember = true) {
+    if (
+      remember &&
+      (patch.body !== undefined || patch.bodyColors !== undefined)
+    ) {
+      setUndo((history) => [
+        ...history.slice(-49),
+        {
+          body: current.current.body,
+          bodyColors: current.current.bodyColors || [],
+        },
+      ]);
+    }
+    if (patch.body !== undefined && patch.bodyColors === undefined)
+      patch.bodyColors = editColors(
+        current.current.body,
+        patch.body,
+        current.current.bodyColors || [],
+        pen,
+      );
     const next = {
       ...current.current,
       ...patch,
@@ -114,6 +153,15 @@ export default function Editor({
       void persist();
     }, 500);
   }
+  useEffect(() => {
+    const input = bodyInput.current;
+    const capture = () => {
+      if (input)
+        beforeSelection.current = [input.selectionStart, input.selectionEnd];
+    };
+    input?.addEventListener("beforeinput", capture);
+    return () => input?.removeEventListener("beforeinput", capture);
+  }, []);
   useEffect(() => {
     if (recovered) void persist();
     const hide = () => {
@@ -173,6 +221,14 @@ export default function Editor({
         >
           <ArrowLeft size={18} />
           戻る
+        </button>
+        <button
+          className="text-button"
+          aria-label="お気に入り"
+          aria-pressed={!!note.favorite}
+          onClick={() => change({ favorite: !note.favorite })}
+        >
+          {note.favorite ? "★" : "☆"}
         </button>
         <span className="save-status" role="status">
           <Check size={15} />
@@ -275,17 +331,86 @@ export default function Editor({
             minute: "2-digit",
           })}
         </div>
-        <textarea
-          className="note-body-input"
-          ref={bodyInput}
-          aria-label="本文"
-          placeholder="思いついたことを、自由に書いてみましょう。"
-          value={note.body}
-          onChange={(e) => change({ body: e.target.value })}
+        <FinanceEditor note={note} onChange={change} />
+        <div className="colored-body">
+          <pre ref={colorLayer} className="body-color-layer" aria-hidden="true">
+            {colorParts(note.body, note.bodyColors || []).map((p, i) => (
+              <span key={i} className={`pen-${p.color}`}>
+                {p.text}
+              </span>
+            ))}
+            {"\n"}
+          </pre>
+          <textarea
+            className="note-body-input"
+            ref={bodyInput}
+            aria-label="本文"
+            placeholder="思いついたことを、自由に書いてみましょう。"
+            value={note.body}
+            onBeforeInput={(e) => {
+              beforeSelection.current = [
+                e.currentTarget.selectionStart,
+                e.currentTarget.selectionEnd,
+              ];
+            }}
+            onSelect={(e) =>
+              setSelection([
+                e.currentTarget.selectionStart,
+                e.currentTarget.selectionEnd,
+              ])
+            }
+            onScroll={(e) => {
+              if (colorLayer.current) {
+                colorLayer.current.scrollTop = e.currentTarget.scrollTop;
+                colorLayer.current.scrollLeft = e.currentTarget.scrollLeft;
+              }
+            }}
+            onChange={(e) => {
+              change({
+                body: e.target.value,
+                bodyColors: editColors(
+                  current.current.body,
+                  e.target.value,
+                  current.current.bodyColors || [],
+                  pen,
+                  beforeSelection.current,
+                  (e.nativeEvent as InputEvent).inputType,
+                ),
+              });
+              beforeSelection.current = undefined;
+            }}
+          />
+        </div>
+        <WritingTools
+          note={note}
+          selection={selection}
+          input={bodyInput}
+          onSelection={setSelection}
+          pen={pen}
+          onPen={(c) => {
+            setPen(c);
+            try {
+              localStorage.setItem("my-memo-pen", c);
+            } catch {
+              setDraftWarning(
+                "文字色の設定を記憶できません。メモの色は自動保存されます。",
+              );
+            }
+          }}
+          onChange={change}
+          canUndo={!!undo.length}
+          onUndo={() => {
+            const previous = undo.at(-1);
+            if (previous) {
+              change(previous, false);
+              setUndo(undo.slice(0, -1));
+            }
+          }}
         />
         <TextTools
           title={note.title}
           body={note.body}
+          bodyColors={note.bodyColors || []}
           titleRef={titleInput}
           bodyRef={bodyInput}
           onChange={change}

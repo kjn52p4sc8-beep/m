@@ -1,17 +1,24 @@
+import { editColors, type ColorRange } from "../data/productivity";
 import { useState, type RefObject } from "react";
-import { characterCount, literalMatches, replaceLiteral } from "../data/text";
+import { literalMatches, replaceLiteral } from "../data/text";
 export default function TextTools({
   title,
   body,
+  bodyColors,
   titleRef,
   bodyRef,
   onChange,
 }: {
   title: string;
   body: string;
+  bodyColors: ColorRange[];
   titleRef: RefObject<HTMLInputElement | null>;
   bodyRef: RefObject<HTMLTextAreaElement | null>;
-  onChange: (patch: { title?: string; body?: string }) => void;
+  onChange: (patch: {
+    title?: string;
+    body?: string;
+    bodyColors?: ColorRange[];
+  }) => void;
 }) {
   const [target, setTarget] = useState<"title" | "body">("body"),
     [query, setQuery] = useState(""),
@@ -20,6 +27,7 @@ export default function TextTools({
   const [undo, setUndo] = useState<{
     target: "title" | "body";
     before: string;
+    colors: ColorRange[];
     after: string;
   } | null>(null);
   const text = target === "body" ? body : title,
@@ -35,9 +43,6 @@ export default function TextTools({
   }
   return (
     <div className="text-tools">
-      <p className="character-count">
-        本文 {characterCount(body).toLocaleString("ja-JP")}文字
-      </p>
       <details>
         <summary>メモ内を検索・置換</summary>
         <div className="text-tool-fields">
@@ -93,8 +98,25 @@ export default function TextTools({
               onClick={() => {
                 if (!confirm(`${matches.length}か所を置き換えますか？`)) return;
                 const after = replaceLiteral(text, query, replacement);
-                setUndo({ target, before: text, after });
-                onChange({ [target]: after });
+                setUndo({ target, before: text, after, colors: bodyColors });
+                let nextText = text,
+                  colors = bodyColors;
+                if (target === "body")
+                  for (const [start, end] of [...matches].reverse()) {
+                    const value =
+                      nextText.slice(0, start) +
+                      replacement +
+                      nextText.slice(end);
+                    colors = editColors(nextText, value, colors, "black", [
+                      start,
+                      end,
+                    ]);
+                    nextText = value;
+                  }
+                onChange({
+                  [target]: after,
+                  ...(target === "body" ? { bodyColors: colors } : {}),
+                });
                 setIndex(0);
               }}
             >
@@ -108,7 +130,12 @@ export default function TextTools({
               }
               onClick={() => {
                 if (undo) {
-                  onChange({ [undo.target]: undo.before });
+                  onChange({
+                    [undo.target]: undo.before,
+                    ...(undo.target === "body"
+                      ? { bodyColors: undo.colors }
+                      : {}),
+                  });
                   setUndo(null);
                 }
               }}

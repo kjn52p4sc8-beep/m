@@ -12,7 +12,7 @@ test("literal replacement, undo, editable tables and backup roundtrip", async ({
     .fill("旅の計画");
   const body = page.getByRole("textbox", { name: "本文", exact: true });
   await body.fill("京都 京都");
-  await expect(page.getByText("本文 5文字", { exact: true })).toBeVisible();
+  await expect(page.getByText("現在：5文字", { exact: true })).toBeVisible();
   await page.getByText("メモ内を検索・置換", { exact: true }).click();
   await page.getByLabel("メモ内の検索語", { exact: true }).fill("京都");
   await page.getByRole("button", { name: "次の一致箇所へ" }).click();
@@ -40,13 +40,11 @@ test("literal replacement, undo, editable tables and backup roundtrip", async ({
     .getByRole("button", { name: "バックアップを保存", exact: true })
     .click();
   const bytes = await readFile((await (await wait).path())!);
-  await page
-    .getByLabel("バックアップを復元", { exact: true })
-    .setInputFiles({
-      name: "tables.json",
-      mimeType: "application/json",
-      buffer: bytes,
-    });
+  await page.getByLabel("バックアップを復元", { exact: true }).setInputFiles({
+    name: "tables.json",
+    mimeType: "application/json",
+    buffer: bytes,
+  });
   await page
     .getByRole("button", { name: "すべて置き換えて復元", exact: true })
     .click();
@@ -115,13 +113,11 @@ test("records real encoded audio from a synthetic microphone, restores and plays
   const data = JSON.parse(bytes.toString());
   expect(data.recordings).toHaveLength(1);
   expect(data.recordings[0].dataUrl).toMatch(/^data:audio\//);
-  await page
-    .getByLabel("バックアップを復元", { exact: true })
-    .setInputFiles({
-      name: "audio.json",
-      mimeType: "application/json",
-      buffer: bytes,
-    });
+  await page.getByLabel("バックアップを復元", { exact: true }).setInputFiles({
+    name: "audio.json",
+    mimeType: "application/json",
+    buffer: bytes,
+  });
   await page
     .getByRole("button", { name: "すべて置き換えて復元", exact: true })
     .click();

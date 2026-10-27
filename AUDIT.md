@@ -1,3 +1,5 @@
+> この文書は初期MVPの点検記録です。現在の0.4.0の実装・テスト結果・制約は [最新報告](docs/implementation/release-0.4.md) を参照してください。
+
 # Phase 1〜6 操作点検
 
 今回の点検はChromiumのiPhone相当画面とデスクトップ、単体テスト、本番PWAを対象としています。iPhone Safari実機・WebKitは検証できていません。

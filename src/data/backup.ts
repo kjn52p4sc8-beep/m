@@ -1,3 +1,5 @@
+import { validateTrip, validateLoans } from "./finance";
+import { validateProductivity } from "./productivity";
 import type {
   Category,
   Folder,
@@ -19,7 +21,7 @@ import { validateTables } from "./tables";
 export const MAX_BACKUP_BYTES = 100 * 1024 * 1024;
 type Backup = {
   format: "my-memo";
-  version: 3;
+  version: 4;
   preferences?: { theme: "light" | "dark" | "system" };
   exportedAt: string;
   categories: Category[];
@@ -91,7 +93,10 @@ export function validateAnnotations(
 }
 export function parseBackup(input: unknown): Backup {
   const root = obj(input);
-  if (root.format !== "my-memo" || ![1, 2, 3].includes(root.version as number))
+  if (
+    root.format !== "my-memo" ||
+    ![1, 2, 3, 4].includes(root.version as number)
+  )
     bad();
   const categories = arr(root.categories, 100).map((v) => {
     const c = obj(v);
@@ -121,7 +126,10 @@ export function parseBackup(input: unknown): Backup {
       folderId: id(n.folderId),
       title: str(n.title),
       body: str(n.body),
+      ...validateProductivity(n, str(n.body)),
       tables: validateTables(n.tables),
+      trip: validateTrip(n.trip),
+      loans: validateLoans(n.loans),
       ...(n.deletedAt === undefined ? {} : { deletedAt: date(n.deletedAt) }),
       todos: arr(n.todos === undefined ? [] : n.todos, 10000).map((v) => {
         const t = obj(v);
@@ -160,7 +168,9 @@ export function parseBackup(input: unknown): Backup {
     };
   });
   const recordings = arr(
-    root.recordings === undefined && root.version !== 3 ? [] : root.recordings,
+    root.recordings === undefined && Number(root.version) < 3
+      ? []
+      : root.recordings,
   ).map((v) => {
     const r = obj(v),
       mimeType = str(r.mimeType, 100),
@@ -208,7 +218,7 @@ export function parseBackup(input: unknown): Backup {
   }
   return {
     format: "my-memo",
-    version: 3,
+    version: 4,
     preferences,
     exportedAt: date(root.exportedAt),
     categories,
@@ -228,7 +238,7 @@ export async function exportBackup() {
     recordings.push({ ...r, dataUrl: await blobToDataUrl(blob) });
   const text = JSON.stringify({
     format: "my-memo",
-    version: 3,
+    version: 4,
     preferences: { theme: readTheme() },
     exportedAt: new Date().toISOString(),
     ...data,

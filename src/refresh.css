@@ -643,3 +643,313 @@ mark {
     scroll-behavior: auto !important;
   }
 }
+/* Native textarea input with a non-interactive color layer. */
+:root {
+  --background: #fff;
+  --ink: #171b19;
+}
+.bottom-nav button.active {
+  color: var(--accent);
+}
+.colored-body {
+  position: relative;
+  margin-top: 12px;
+}
+.colored-body .note-body-input,
+.body-color-layer {
+  font: 16px/1.9 inherit;
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 1.9;
+  letter-spacing: normal;
+  padding: 16px 4px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  tab-size: 8;
+}
+.colored-body .note-body-input {
+  position: relative;
+  display: block;
+  z-index: 1;
+  background: transparent;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: var(--ink);
+}
+.colored-body .note-body-input::placeholder {
+  color: var(--muted);
+  -webkit-text-fill-color: var(--muted);
+}
+.body-color-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.pen-black {
+  color: var(--ink);
+}
+.pen-red {
+  color: #bd2734;
+}
+.pen-blue {
+  color: #205cb6;
+}
+.pen-green {
+  color: #26733c;
+}
+.pen-orange {
+  color: #a14b00;
+}
+.pen-purple {
+  color: #843bb1;
+}
+.dark .pen-red {
+  color: #ff939c;
+}
+.dark .pen-blue {
+  color: #8bbcff;
+}
+.dark .pen-green {
+  color: #89d79c;
+}
+.dark .pen-orange {
+  color: #ffb873;
+}
+.dark .pen-purple {
+  color: #d5a4ff;
+}
+.writing-actions,
+.pen-palette,
+.limit-presets {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.writing-tools button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font-size: 14px;
+}
+.writing-tools .count-button {
+  position: fixed;
+  bottom: calc(8px + var(--safe-bottom, 0px));
+  left: max(16px, var(--safe-left, 0px));
+  z-index: 41;
+  box-shadow: 0 1px 5px #0001;
+}
+.count-button.reached {
+  color: #9b4a00;
+}
+.count-button.over {
+  color: #bd2734;
+}
+.dark .count-button.reached {
+  color: #ffb873;
+}
+.dark .count-button.over {
+  color: #ff939c;
+}
+.count-details {
+  position: fixed;
+  z-index: 42;
+  bottom: calc(62px + var(--safe-bottom, 0px));
+  left: max(16px, var(--safe-left, 0px));
+  width: min(350px, calc(100vw - 32px));
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  max-height: 55dvh;
+  overflow: auto;
+}
+.count-details p {
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+.count-details input {
+  width: 100%;
+}
+.count-details small {
+  display: block;
+  margin-top: 10px;
+  color: var(--muted);
+}
+.pen-palette {
+  margin-top: 8px;
+}
+.pen-palette [aria-pressed="true"] {
+  outline: 2px solid var(--accent);
+}
+body[data-scroll-lock] .writing-tools .count-button,
+body[data-scroll-lock] .count-details {
+  visibility: hidden;
+}
+@media (max-width: 767px) {
+  [data-keyboard="open"] .writing-tools .count-button {
+    top: calc(var(--visible-top) + var(--visible-height) - 46px);
+    bottom: auto;
+    box-shadow: none;
+    border: 0;
+    max-width: calc(100vw - 170px);
+    padding: 6px;
+  }
+  [data-keyboard="open"] .count-details {
+    top: calc(var(--visible-top) + 60px);
+    bottom: auto;
+    max-height: calc(var(--visible-height) - 120px);
+  }
+}
+@media (min-width: 768px) {
+  .writing-tools .count-button,
+  .count-details {
+    left: max(280px, calc((100vw - 720px) / 2));
+  }
+}
+.finance-editor {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 12px;
+}
+.finance-summary {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.finance-summary > div {
+  flex: 1;
+  min-width: 70px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.finance-summary strong {
+  display: block;
+  font-size: 20px;
+  line-height: 1.7;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.finance-summary .danger {
+  color: #bd2734;
+}
+.finance-editor progress {
+  width: 100%;
+  height: 5px;
+  accent-color: var(--accent);
+}
+.finance-editor summary {
+  min-height: 44px;
+  cursor: pointer;
+  padding: 12px 0;
+  font-size: 15px;
+}
+.finance-form {
+  display: grid;
+  gap: 12px;
+  padding: 12px 0;
+}
+.finance-form label {
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+  min-width: 0;
+}
+.finance-form input,
+.finance-form select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.form-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+.finance-entry {
+  border-top: 1px solid var(--line);
+  padding: 10px 0;
+  overflow-wrap: anywhere;
+}
+.finance-entry small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 5px;
+}
+.loan-status {
+  display: block;
+  color: var(--accent);
+  font-size: 13px;
+}
+.repayment-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+.create-types {
+  display: grid;
+  gap: 8px;
+}
+.create-types button {
+  min-height: 48px;
+  text-align: left;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.floating-types {
+  position: fixed;
+  bottom: calc(88px + var(--safe-bottom, 0px));
+  right: 88px;
+  width: 48px;
+  height: 48px;
+  z-index: 20;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--accent);
+  border-radius: 50%;
+}
+[data-keyboard="open"] .floating-types {
+  display: none;
+}
+.tutorial {
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0 14px;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.tutorial h3,
+.tutorial p {
+  margin: 4px 0;
+  font-size: 14px;
+}
+.tutorial small {
+  color: var(--muted);
+}
+.tutorial .settings-actions {
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  max-width: 80px;
+  gap: 0;
+}
+@media (min-width: 768px) {
+  .floating-types {
+    bottom: 32px;
+    right: 110px;
+  }
+}
