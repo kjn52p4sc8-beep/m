@@ -69,7 +69,11 @@ export default function Editor({
           try {
             clearSavedDraft(value);
             if (dirty.current) writeDraft(current.current, value);
-          } catch { setDraftWarning("下書きの一時保存を更新できません。保存済みの表示を確認してください。"); }
+          } catch {
+            setDraftWarning(
+              "下書きの一時保存を更新できません。保存済みの表示を確認してください。",
+            );
+          }
           onSaved();
         }
         setStatus("保存済み");
@@ -96,8 +100,14 @@ export default function Editor({
     current.current = next;
     setNote(next);
     dirty.current = true;
-    try { writeDraft(next, base.current); setDraftWarning(""); }
-    catch { setDraftWarning("下書きを一時保存できません。画面を閉じる前に「保存済み」を確認してください。"); }
+    try {
+      writeDraft(next, base.current);
+      setDraftWarning("");
+    } catch {
+      setDraftWarning(
+        "下書きを一時保存できません。画面を閉じる前に「保存済み」を確認してください。",
+      );
+    }
     setStatus("未保存");
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
@@ -173,11 +183,19 @@ export default function Editor({
           className="icon-button danger"
           disabled={busy || imageBusy || audioBusy}
           onClick={async () => {
-            if (!confirm("このメモをごみ箱へ移しますか？ 画像や注釈も後から復元できます。")) return;
+            if (
+              !confirm(
+                "このメモをごみ箱へ移しますか？ 画像や注釈も後から復元できます。",
+              )
+            )
+              return;
             setBusy(true);
             clearTimeout(timer.current);
             await persist();
-            if (dirty.current) { setBusy(false); return; }
+            if (dirty.current) {
+              setBusy(false);
+              return;
+            }
             try {
               await onDelete(note.id);
             } finally {
@@ -194,8 +212,14 @@ export default function Editor({
           <button onClick={() => void persist()}>保存を再試行</button>
         </div>
       )}
-      {recovered && <p className="fine-print">前回の未保存の下書きを復元しました。</p>}
-      {draftWarning && <p role="alert" className="error">{draftWarning}</p>}
+      {recovered && (
+        <p className="fine-print">前回の未保存の下書きを復元しました。</p>
+      )}
+      {draftWarning && (
+        <p role="alert" className="error">
+          {draftWarning}
+        </p>
+      )}
       <fieldset disabled={busy} className="editor-paper">
         <div className="location-fields">
           <label>
@@ -259,7 +283,13 @@ export default function Editor({
           value={note.body}
           onChange={(e) => change({ body: e.target.value })}
         />
-        <TextTools title={note.title} body={note.body} titleRef={titleInput} bodyRef={bodyInput} onChange={change} />
+        <TextTools
+          title={note.title}
+          body={note.body}
+          titleRef={titleInput}
+          bodyRef={bodyInput}
+          onChange={change}
+        />
         <label className="field">
           タグ{" "}
           <input
@@ -269,8 +299,14 @@ export default function Editor({
             onChange={(e) => change({ tags: parseTags(e.target.value) })}
           />
         </label>
-        <Checklist items={note.todos || []} onChange={todos => change({ todos })} />
-        <TableEditor tables={note.tables || []} onChange={tables => change({ tables })} />
+        <Checklist
+          items={note.todos || []}
+          onChange={(todos) => change({ todos })}
+        />
+        <TableEditor
+          tables={note.tables || []}
+          onChange={(tables) => change({ tables })}
+        />
         <Images
           noteId={note.id}
           onBusy={setImageBusy}
@@ -282,12 +318,17 @@ export default function Editor({
             onSaved();
           }}
         />
-        <Recordings noteId={note.id} onBusy={setAudioBusy} onChanged={updatedAt => {
-          if (updatedAt && updatedAt > current.current.updatedAt) {
-            current.current = {...current.current, updatedAt}; setNote(current.current);
-          }
-          onSaved();
-        }} />
+        <Recordings
+          noteId={note.id}
+          onBusy={setAudioBusy}
+          onChanged={(updatedAt) => {
+            if (updatedAt && updatedAt > current.current.updatedAt) {
+              current.current = { ...current.current, updatedAt };
+              setNote(current.current);
+            }
+            onSaved();
+          }}
+        />
         <section className="links-section">
           <div className="section-heading">
             <h3>

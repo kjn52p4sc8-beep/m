@@ -4,6 +4,9 @@ test("folder CRUD, note autosave, reload, links and cross-category search", asyn
 }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "お金 未来のために" }).click();
+  await page
+    .getByRole("button", { name: "フォルダを管理", exact: true })
+    .click();
   await page.getByRole("button", { name: "フォルダ作成", exact: true }).click();
   await page
     .getByRole("textbox", { name: "新しいフォルダ名" })
@@ -81,6 +84,9 @@ test("folder CRUD, note autosave, reload, links and cross-category search", asyn
   ).toBeVisible();
   await page.goto("/");
   await page.getByRole("button", { name: "お金 未来のために" }).click();
+  await page
+    .getByRole("button", { name: "フォルダを管理", exact: true })
+    .click();
   page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "来月の計画を削除" }).click();
   await expect(
@@ -156,6 +162,9 @@ test("320px layout and folder controls stay within viewport", async ({
   await page.setViewportSize({ width: 320, height: 700 });
   await page.goto("/");
   await page.getByRole("button", { name: "仕事 アイデアを" }).click();
+  await page
+    .getByRole("button", { name: "フォルダを管理", exact: true })
+    .click();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,

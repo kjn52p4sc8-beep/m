@@ -119,7 +119,8 @@ export default function DataSettings({
           <p>
             {pending.notes.length} メモ / {pending.attachments.length} 画像 /{" "}
             {pending.folders.length} フォルダ
-            {" / "}{pending.recordings.length} 録音
+            {" / "}
+            {pending.recordings.length} 録音
           </p>
           <div className="settings-actions">
             <button

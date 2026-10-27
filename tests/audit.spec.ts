@@ -4,6 +4,9 @@ test("folder validation, reorder boundaries and recovery when a category has no 
 }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "お金 未来のために" }).click();
+  await page
+    .getByRole("button", { name: "フォルダを管理", exact: true })
+    .click();
   await expect(
     page.getByRole("button", { name: "収入・支出を上へ" }),
   ).toBeDisabled();

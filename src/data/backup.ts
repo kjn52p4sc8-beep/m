@@ -1,8 +1,20 @@
-import type { Category, Folder, Note, Attachment, Annotation, Recording } from "./model";
+import type {
+  Category,
+  Folder,
+  Note,
+  Attachment,
+  Annotation,
+  Recording,
+} from "./model";
 import { backupSnapshot, replaceAll } from "./repository";
 import { blobToDataUrl, decodeImage } from "./images";
 import { safeUrl } from "./search";
-import { AUDIO_TYPES, MAX_AUDIO_BYTES, MAX_AUDIO_SECONDS, validateAudio } from "./audio";
+import {
+  AUDIO_TYPES,
+  MAX_AUDIO_BYTES,
+  MAX_AUDIO_SECONDS,
+  validateAudio,
+} from "./audio";
 import { validateTables } from "./tables";
 export const MAX_BACKUP_BYTES = 100 * 1024 * 1024;
 type Backup = {
@@ -79,7 +91,8 @@ export function validateAnnotations(
 }
 export function parseBackup(input: unknown): Backup {
   const root = obj(input);
-  if (root.format !== "my-memo" || ![1, 2, 3].includes(root.version as number)) bad();
+  if (root.format !== "my-memo" || ![1, 2, 3].includes(root.version as number))
+    bad();
   const categories = arr(root.categories, 100).map((v) => {
     const c = obj(v);
     return {
@@ -110,7 +123,7 @@ export function parseBackup(input: unknown): Backup {
       body: str(n.body),
       tables: validateTables(n.tables),
       ...(n.deletedAt === undefined ? {} : { deletedAt: date(n.deletedAt) }),
-      todos: arr(n.todos === undefined ? [] : n.todos, 10000).map(v => {
+      todos: arr(n.todos === undefined ? [] : n.todos, 10000).map((v) => {
         const t = obj(v);
         if (typeof t.done !== "boolean") bad();
         return { id: id(t.id), text: str(t.text), done: t.done as boolean };
@@ -146,13 +159,31 @@ export function parseBackup(input: unknown): Backup {
       dataUrl,
     };
   });
-  const recordings = arr(root.recordings === undefined && root.version !== 3 ? [] : root.recordings).map(v => {
-    const r = obj(v), mimeType = str(r.mimeType, 100), dataUrl = str(r.dataUrl, MAX_AUDIO_BYTES * 2);
-    if (!AUDIO_TYPES.includes(mimeType) || !dataUrl.startsWith(`data:${mimeType};base64,`) || !/^data:audio\/(mp4|webm|ogg);base64,[A-Za-z0-9+/]+={0,2}$/.test(dataUrl)) bad();
-    return { id:id(r.id), noteId:id(r.noteId), name:str(r.name,1000), mimeType, dataUrl, durationSeconds:num(r.durationSeconds,0,MAX_AUDIO_SECONDS+10), createdAt:date(r.createdAt) };
+  const recordings = arr(
+    root.recordings === undefined && root.version !== 3 ? [] : root.recordings,
+  ).map((v) => {
+    const r = obj(v),
+      mimeType = str(r.mimeType, 100),
+      dataUrl = str(r.dataUrl, MAX_AUDIO_BYTES * 2);
+    if (
+      !AUDIO_TYPES.includes(mimeType) ||
+      !dataUrl.startsWith(`data:${mimeType};base64,`) ||
+      !/^data:audio\/(mp4|webm|ogg);base64,[A-Za-z0-9+/]+={0,2}$/.test(dataUrl)
+    )
+      bad();
+    return {
+      id: id(r.id),
+      noteId: id(r.noteId),
+      name: str(r.name, 1000),
+      mimeType,
+      dataUrl,
+      durationSeconds: num(r.durationSeconds, 0, MAX_AUDIO_SECONDS + 10),
+      createdAt: date(r.createdAt),
+    };
   });
-  for (const items of [categories, folders, notes, attachments, recordings]) unique(items);
-  for (const r of recordings) if (!notes.some(n => n.id === r.noteId)) bad();
+  for (const items of [categories, folders, notes, attachments, recordings])
+    unique(items);
+  for (const r of recordings) if (!notes.some((n) => n.id === r.noteId)) bad();
   for (const f of folders)
     if (!categories.some((c) => c.id === f.categoryId)) bad();
   for (const n of notes) {
@@ -162,7 +193,8 @@ export function parseBackup(input: unknown): Backup {
       bad();
     unique(n.links);
     unique(n.todos);
-    if (!n.deletedAt && folders.find(f => f.id === n.folderId)?.deletedAt) bad();
+    if (!n.deletedAt && folders.find((f) => f.id === n.folderId)?.deletedAt)
+      bad();
   }
   for (const a of attachments) {
     if (!notes.some((n) => n.id === a.noteId)) bad();
@@ -192,7 +224,8 @@ export async function exportBackup() {
   for (const { blob, ...a } of data.attachments)
     attachments.push({ ...a, dataUrl: await blobToDataUrl(blob) });
   const recordings = [];
-  for (const {blob, ...r} of data.recordings) recordings.push({...r, dataUrl: await blobToDataUrl(blob)});
+  for (const { blob, ...r } of data.recordings)
+    recordings.push({ ...r, dataUrl: await blobToDataUrl(blob) });
   const text = JSON.stringify({
     format: "my-memo",
     version: 3,
@@ -233,11 +266,13 @@ export async function readBackup(file: File) {
     attachments.push({ ...a, blob });
   }
   const recordings: Recording[] = [];
-  for (const {dataUrl, ...r} of backup.recordings) {
+  for (const { dataUrl, ...r } of backup.recordings) {
     const binary = atob(dataUrl.split(",")[1]);
-    const blob = new Blob([Uint8Array.from(binary,c=>c.charCodeAt(0))], {type:r.mimeType});
+    const blob = new Blob([Uint8Array.from(binary, (c) => c.charCodeAt(0))], {
+      type: r.mimeType,
+    });
     await validateAudio(blob, r.mimeType);
-    recordings.push({...r, blob});
+    recordings.push({ ...r, blob });
   }
   return {
     preferences: backup.preferences,
@@ -253,17 +288,27 @@ export async function restoreBackup(
 ) {
   await replaceAll(data);
   if (data.preferences) {
-    try { localStorage.setItem("my-memo-theme", data.preferences.theme); }
-    catch { throw Error("メモは復元しましたが、表示テーマを保存できませんでした。設定で選択してください。"); }
+    try {
+      localStorage.setItem("my-memo-theme", data.preferences.theme);
+    } catch {
+      throw Error(
+        "メモは復元しましたが、表示テーマを保存できませんでした。設定で選択してください。",
+      );
+    }
   }
   try {
-    for (const key of Object.keys(localStorage)) if (key.startsWith("my-memo-draft:")) localStorage.removeItem(key);
-  } catch { /* Draft recovery also compares timestamps and note identity. */ }
+    for (const key of Object.keys(localStorage))
+      if (key.startsWith("my-memo-draft:")) localStorage.removeItem(key);
+  } catch {
+    /* Draft recovery also compares timestamps and note identity. */
+  }
 }
 
 export function readTheme(): "light" | "dark" | "system" {
   try {
     const value = localStorage.getItem("my-memo-theme");
     return value === "light" || value === "dark" ? value : "system";
-  } catch { return "system"; }
+  } catch {
+    return "system";
+  }
 }

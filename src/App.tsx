@@ -67,6 +67,7 @@ export default function App() {
     }>({ categories: [], folders: [], notes: [], trash: [] }),
     [view, setView] = useState<View>("home"),
     [categoryId, setCategoryId] = useState(""),
+    [homeCategory, setHomeCategory] = useState(""),
     [folderId, setFolderId] = useState(""),
     [editing, setEditing] = useState<Note | null>(null),
     [query, setQuery] = useState(""),
@@ -91,7 +92,7 @@ export default function App() {
   useScreenScroll(
     editing
       ? `note:${editing.id}`
-      : `${view}:${view === "category" ? categoryId : ""}`,
+      : `${view}:${view === "category" ? categoryId : view === "home" ? homeCategory : ""}`,
   );
   async function refresh() {
     setData(await snapshot());
@@ -108,11 +109,13 @@ export default function App() {
   }, []);
   useEffect(() => {
     const media = matchMedia("(prefers-color-scheme: dark)");
-    const apply = () =>
-      document.documentElement.classList.toggle(
-        "dark",
-        theme === "dark" || (theme === "system" && media.matches),
-      );
+    const apply = () => {
+      const dark = theme === "dark" || (theme === "system" && media.matches);
+      document.documentElement.classList.toggle("dark", dark);
+      document
+        .querySelector('meta[name="theme-color"]')
+        ?.setAttribute("content", dark ? "#171d19" : "#faf9f6");
+    };
     apply();
     media.addEventListener("change", apply);
     try {
@@ -140,7 +143,9 @@ export default function App() {
       await saveNote(note);
       await refresh();
       setEditing(note);
-      try { localStorage.setItem("my-memo-last-folder", folder.id); } catch {}
+      try {
+        localStorage.setItem("my-memo-last-folder", folder.id);
+      } catch {}
       setNewDialog(false);
     } catch {
       setError("メモを作成できませんでした。もう一度お試しください。");
@@ -153,13 +158,21 @@ export default function App() {
     if (creating || createLock.current) return;
     try {
       let last = "";
-      try { last = localStorage.getItem("my-memo-last-folder") || ""; } catch {}
-      const folder = await quickFolder(view === "category" ? categoryId : undefined, folderId || last);
+      try {
+        last = localStorage.getItem("my-memo-last-folder") || "";
+      } catch {}
+      const folder = await quickFolder(
+        view === "category" ? categoryId : homeCategory || undefined,
+        folderId || last,
+      );
       await create(folder);
-    } catch { setError("メモを作成できませんでした。再試行してください。"); }
+    } catch {
+      setError("メモを作成できませんでした。再試行してください。");
+    }
   }
   function go(next: View) {
     setView(next);
+    if (next === "home") setHomeCategory("");
     setFolderId("");
     setShowFolderForm(false);
   }
@@ -175,8 +188,15 @@ export default function App() {
       (n) =>
         n.categoryId === categoryId && (!folderId || n.folderId === folderId),
     );
-  const searchResults = searchNotes(data.notes, query).filter(n =>
-    (!filterCategory || n.categoryId === filterCategory) && (!filterFolder || n.folderId === filterFolder) && (!filterTag || n.tags.includes(filterTag)));
+  const homeNotes = data.notes.filter(
+    (n) => !homeCategory || n.categoryId === homeCategory,
+  );
+  const searchResults = searchNotes(data.notes, query).filter(
+    (n) =>
+      (!filterCategory || n.categoryId === filterCategory) &&
+      (!filterFolder || n.folderId === filterFolder) &&
+      (!filterTag || n.tags.includes(filterTag)),
+  );
   function noteList(notes: Note[], empty = "まだメモがありません") {
     return (
       <NoteList
@@ -277,7 +297,11 @@ export default function App() {
                   ? "検索"
                   : view === "settings"
                     ? "設定"
-                    : view === "todo" ? "ToDo" : view === "trash" ? "ごみ箱" : selected?.name}
+                    : view === "todo"
+                      ? "ToDo"
+                      : view === "trash"
+                        ? "ごみ箱"
+                        : selected?.name}
           </span>
           <button
             className="avatar"
@@ -325,23 +349,78 @@ export default function App() {
             <>
               {view === "home" && (
                 <>
-                  <button className="search-launch" aria-label="メモ、タグ、リンクを検索 検索" onClick={() => go("search")}>
-                    <Search size={21} /><span>メモ、タグ、リンクを検索</span>
+                  <button
+                    className="search-launch"
+                    aria-label="メモ、タグ、リンクを検索 検索"
+                    onClick={() => go("search")}
+                  >
+                    <Search size={21} />
+                    <span>メモ、タグ、リンクを検索</span>
                   </button>
                   <h2 className="sr-only">カテゴリー</h2>
-                  <div className="category-tabs" aria-label="カテゴリー切り替え">
-                    <button className="selected" aria-pressed="true" onClick={() => go("home")}><LayoutGrid size={19} />すべて</button>
-                    {data.categories.map(c => { const Icon = icons[c.id] || NotebookPen; return (
-                      <button key={c.id} aria-label={`${c.name} ${c.description}`} aria-pressed="false" onClick={() => openCategory(c)}>
-                        <Icon size={19} className={c.color} />{c.name}
-                      </button>
-                    ); })}
+                  <div
+                    className="category-tabs"
+                    aria-label="カテゴリー切り替え"
+                  >
+                    <button
+                      className={!homeCategory ? "selected" : ""}
+                      aria-pressed={!homeCategory}
+                      onClick={() => setHomeCategory("")}
+                    >
+                      <LayoutGrid size={19} />
+                      すべて
+                    </button>
+                    {data.categories.map((c) => {
+                      const Icon = icons[c.id] || NotebookPen;
+                      return (
+                        <button
+                          key={c.id}
+                          aria-label={`${c.name} ${c.description}`}
+                          className={homeCategory === c.id ? "selected" : ""}
+                          aria-pressed={homeCategory === c.id}
+                          onClick={() => setHomeCategory(c.id)}
+                        >
+                          <Icon size={19} className={c.color} />
+                          {c.name}
+                        </button>
+                      );
+                    })}
                   </div>
-                  <TodoPanel compact notes={data.notes} categories={data.categories} onOpen={setEditing} onToggle={(n,t,d) => action(() => toggleTodo(n,t,d))} onShowAll={() => go("todo")} />
+                  {homeCategory && (
+                    <div className="category-context">
+                      <span>
+                        {
+                          data.categories.find((c) => c.id === homeCategory)
+                            ?.name
+                        }
+                        のメモ
+                      </span>
+                      <button
+                        className="text-button"
+                        onClick={() => {
+                          const c = data.categories.find(
+                            (c) => c.id === homeCategory,
+                          );
+                          if (c) openCategory(c);
+                        }}
+                      >
+                        <FolderIcon size={17} />
+                        フォルダを管理
+                      </button>
+                    </div>
+                  )}
+                  <TodoPanel
+                    compact
+                    notes={homeNotes}
+                    categories={data.categories}
+                    onOpen={setEditing}
+                    onToggle={(n, t, d) => action(() => toggleTodo(n, t, d))}
+                    onShowAll={() => go("todo")}
+                  />
                   <div className="section-heading recent-heading">
                     <h2>
                       最近のメモ{" "}
-                      <span className="count">{data.notes.length}</span>
+                      <span className="count">{homeNotes.length}</span>
                     </h2>
                     <button
                       className="text-button"
@@ -351,7 +430,7 @@ export default function App() {
                       <ChevronRight size={15} />
                     </button>
                   </div>
-                  {noteList(data.notes.slice(0, 30))}
+                  {noteList(homeNotes.slice(0, 30))}
                 </>
               )}
               {view === "category" && (
@@ -538,26 +617,103 @@ export default function App() {
                       </button>
                     )}
                   </label>
-                  <details className="search-filters"><summary>カテゴリー・フォルダ・タグで絞り込む</summary>
-                    <label>カテゴリー<select aria-label="カテゴリーで絞り込み" value={filterCategory} onChange={e => { setFilterCategory(e.target.value); setFilterFolder(""); }}><option value="">すべて</option>{data.categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-                    <label>フォルダ<select aria-label="フォルダで絞り込み" value={filterFolder} onChange={e => setFilterFolder(e.target.value)}><option value="">すべて</option>{data.folders.filter(f => !filterCategory || f.categoryId === filterCategory).map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</select></label>
-                    <label>タグ<select aria-label="タグで絞り込み" value={filterTag} onChange={e => setFilterTag(e.target.value)}><option value="">すべて</option>{[...new Set(data.notes.flatMap(n => n.tags))].sort().map(t => <option key={t} value={t}>{t}</option>)}</select></label>
-                    <button className="text-button" onClick={() => { setFilterCategory(""); setFilterFolder(""); setFilterTag(""); }}>絞り込みを解除</button>
+                  <details className="search-filters">
+                    <summary>カテゴリー・フォルダ・タグで絞り込む</summary>
+                    <label>
+                      カテゴリー
+                      <select
+                        aria-label="カテゴリーで絞り込み"
+                        value={filterCategory}
+                        onChange={(e) => {
+                          setFilterCategory(e.target.value);
+                          setFilterFolder("");
+                        }}
+                      >
+                        <option value="">すべて</option>
+                        {data.categories.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      フォルダ
+                      <select
+                        aria-label="フォルダで絞り込み"
+                        value={filterFolder}
+                        onChange={(e) => setFilterFolder(e.target.value)}
+                      >
+                        <option value="">すべて</option>
+                        {data.folders
+                          .filter(
+                            (f) =>
+                              !filterCategory ||
+                              f.categoryId === filterCategory,
+                          )
+                          .map((f) => (
+                            <option key={f.id} value={f.id}>
+                              {f.name}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    <label>
+                      タグ
+                      <select
+                        aria-label="タグで絞り込み"
+                        value={filterTag}
+                        onChange={(e) => setFilterTag(e.target.value)}
+                      >
+                        <option value="">すべて</option>
+                        {[...new Set(data.notes.flatMap((n) => n.tags))]
+                          .sort()
+                          .map((t) => (
+                            <option key={t} value={t}>
+                              {t}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    <button
+                      className="text-button"
+                      onClick={() => {
+                        setFilterCategory("");
+                        setFilterFolder("");
+                        setFilterTag("");
+                      }}
+                    >
+                      絞り込みを解除
+                    </button>
                   </details>
                   <div className="section-heading">
                     <h2>{query ? "検索結果" : "すべてのメモ"}</h2>
-                    <span className="muted">
-                      {searchResults.length} 件
-                    </span>
+                    <span className="muted">{searchResults.length} 件</span>
                   </div>
-                  {noteList(
-                    searchResults,
-                    "一致するメモがありません",
-                  )}
+                  {noteList(searchResults, "一致するメモがありません")}
                 </>
               )}
-              {view === "todo" && <><h1>ToDo</h1><p className="muted">すべてのメモのチェック項目をまとめて確認。</p><TodoPanel notes={data.notes} categories={data.categories} onOpen={setEditing} onToggle={(n,t,d) => action(() => toggleTodo(n,t,d))} /></>}
-              {view === "trash" && <TrashView notes={data.trash} onRestore={id => action(() => restoreNote(id))} onDelete={id => action(() => permanentlyDeleteNote(id))} />}
+              {view === "todo" && (
+                <>
+                  <h1>ToDo</h1>
+                  <p className="muted">
+                    すべてのメモのチェック項目をまとめて確認。
+                  </p>
+                  <TodoPanel
+                    notes={data.notes}
+                    categories={data.categories}
+                    onOpen={setEditing}
+                    onToggle={(n, t, d) => action(() => toggleTodo(n, t, d))}
+                  />
+                </>
+              )}
+              {view === "trash" && (
+                <TrashView
+                  notes={data.trash}
+                  onRestore={(id) => action(() => restoreNote(id))}
+                  onDelete={(id) => action(() => permanentlyDeleteNote(id))}
+                />
+              )}
               {view === "settings" && (
                 <>
                   <h1>設定</h1>
@@ -587,8 +743,19 @@ export default function App() {
                       ))}
                     </div>
                   </section>
-                  <button className="trash-link text-button" onClick={() => go("trash")}><Trash2 size={19}/>ごみ箱（{data.trash.length}）</button>
-                  <DataSettings onRestored={async () => { setTheme(readTheme()); await refresh(); }} />
+                  <button
+                    className="trash-link text-button"
+                    onClick={() => go("trash")}
+                  >
+                    <Trash2 size={19} />
+                    ごみ箱（{data.trash.length}）
+                  </button>
+                  <DataSettings
+                    onRestored={async () => {
+                      setTheme(readTheme());
+                      await refresh();
+                    }}
+                  />
                   <PwaSettings />
                   <section className="settings-card">
                     <h2>
@@ -601,7 +768,7 @@ export default function App() {
                     <p>
                       クラウド同期は未対応です。データはこの端末内に保存されます。
                     </p>
-                    <small>My Memo · MVP 0.2.0</small>
+                    <small>My Memo 0.3.0</small>
                   </section>
                 </>
               )}
@@ -609,7 +776,16 @@ export default function App() {
           )}
         </main>
       </div>
-      {!editing && !loading && <button className="floating-create" aria-label="クイックメモを作成" disabled={creating} onClick={() => void quickCreate()}><Plus size={28} /></button>}
+      {!editing && !loading && (
+        <button
+          className="floating-create"
+          aria-label="クイックメモを作成"
+          disabled={creating}
+          onClick={() => void quickCreate()}
+        >
+          <Plus size={28} />
+        </button>
+      )}
       {!editing && (
         <nav className="bottom-nav" aria-label="メインメニュー">
           <button
@@ -626,7 +802,13 @@ export default function App() {
             <Search size={21} />
             検索
           </button>
-          <button className={view === "todo" ? "active" : ""} onClick={() => go("todo")}><SquareCheck size={22}/>ToDo</button>
+          <button
+            className={view === "todo" ? "active" : ""}
+            onClick={() => go("todo")}
+          >
+            <SquareCheck size={22} />
+            ToDo
+          </button>
           <button
             className={view === "settings" ? "active" : ""}
             onClick={() => go("settings")}

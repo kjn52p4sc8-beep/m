@@ -30,17 +30,52 @@ export default function NoteList({
           <button className="note-row" key={n.id} onClick={() => onOpen(n)}>
             <NoteThumbnail noteId={n.id} updatedAt={n.updatedAt} />
             <span className="note-summary">
-              <strong><Highlight text={n.title || "無題のメモ"} query={query} /></strong>
+              <strong>
+                <Highlight text={n.title || "無題のメモ"} query={query} />
+              </strong>
               <span>
-                <Highlight text={excerpt(query ? [n.body, ...(n.todos || []).map(t => t.text), ...(n.tables || []).flatMap(t=>[t.title,...t.rows.flat()]), ...n.links.flatMap(l => [l.title, l.url, ...l.tags])].join(" ") : n.body, query) || "自由にメモを書き始めましょう"} query={query} />
+                <Highlight
+                  text={
+                    excerpt(
+                      query
+                        ? [
+                            n.body,
+                            ...(n.todos || []).map((t) => t.text),
+                            ...(n.tables || []).flatMap((t) => [
+                              t.title,
+                              ...t.rows.flat(),
+                            ]),
+                            ...n.links.flatMap((l) => [
+                              l.title,
+                              l.url,
+                              ...l.tags,
+                            ]),
+                          ].join(" ")
+                        : n.body,
+                      query,
+                    ) || "自由にメモを書き始めましょう"
+                  }
+                  query={query}
+                />
               </span>
               <small>
                 <b className={`category-badge ${c?.color}`}>{c?.name}</b>{" "}
-                <span className="note-folder">{folders.find((f) => f.id === n.folderId)?.name}</span>{" "}
-                {n.tags.map(t => <span className="tag-pill" key={t}>#<Highlight text={t} query={query} /></span>)}
+                <span className="note-folder">
+                  {folders.find((f) => f.id === n.folderId)?.name}
+                </span>{" "}
+                {n.tags.map((t) => (
+                  <span className="tag-pill" key={t}>
+                    #<Highlight text={t} query={query} />
+                  </span>
+                ))}
               </small>
               <time className="note-updated" dateTime={n.updatedAt}>
-                {new Date(n.updatedAt).toLocaleString("ja-JP", {month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit"})}
+                {new Date(n.updatedAt).toLocaleString("ja-JP", {
+                  month: "numeric",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
               </time>
             </span>
             <ChevronRight className="note-chevron" size={16} />

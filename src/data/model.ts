@@ -11,8 +11,16 @@ export interface Folder {
   order: number;
   deletedAt?: string;
 }
-export interface TodoItem { id: string; text: string; done: boolean; }
-export interface NoteTable { id: string; title: string; rows: string[][]; }
+export interface TodoItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+export interface NoteTable {
+  id: string;
+  title: string;
+  rows: string[][];
+}
 export interface VideoLink {
   id: string;
   title: string;

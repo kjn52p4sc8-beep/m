@@ -16,6 +16,14 @@ test("production PWA boots and edits a saved note offline", async ({
   await page
     .getByRole("textbox", { name: "タイトル", exact: true })
     .fill("オフラインメモ");
+  await page
+    .getByRole("button", { name: "チェック項目を追加", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "チェック項目", exact: true })
+    .fill("オフラインでも残す項目");
+  await page.getByRole("button", { name: "表を挿入", exact: true }).click();
+  await page.getByLabel("表1 行1 列1", { exact: true }).fill("オフラインの表");
   const png = await page.evaluate(() => {
     const c = document.createElement("canvas");
     c.width = c.height = 40;
@@ -42,6 +50,12 @@ test("production PWA boots and edits a saved note offline", async ({
   await expect(
     page.getByRole("textbox", { name: "本文", exact: true }),
   ).toHaveValue("通信なしで保存");
+  await expect(
+    page.getByRole("textbox", { name: "チェック項目", exact: true }),
+  ).toHaveValue("オフラインでも残す項目");
+  await expect(page.getByLabel("表1 行1 列1", { exact: true })).toHaveValue(
+    "オフラインの表",
+  );
   await page.getByRole("button", { name: "offline.pngを拡大" }).click();
   await expect(page.getByRole("img", { name: "注釈キャンバス" })).toBeVisible();
 });

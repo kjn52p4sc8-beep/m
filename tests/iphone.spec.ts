@@ -158,8 +158,12 @@ test("returning from a memo restores the home list scroll position", async ({
   const note = page.getByRole("button", { name: /スクロール復元/ });
   // The compact home no longer needs scrolling for one note. Fill a real list.
   for (let i = 0; i < 8; i++) {
-    await page.getByRole("button", { name: "クイックメモを作成", exact: true }).click();
-    await page.getByRole("textbox", { name: "タイトル", exact: true }).fill(`一覧のメモ ${i}`);
+    await page
+      .getByRole("button", { name: "クイックメモを作成", exact: true })
+      .click();
+    await page
+      .getByRole("textbox", { name: "タイトル", exact: true })
+      .fill(`一覧のメモ ${i}`);
     await page.getByRole("button", { name: "戻る", exact: true }).click();
   }
   await note.scrollIntoViewIfNeeded();

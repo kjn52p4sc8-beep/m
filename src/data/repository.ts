@@ -55,16 +55,22 @@ export async function initialize(database = db) {
   );
 }
 export async function snapshot() {
-  const notes = (await db.notes.toArray()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const notes = (await db.notes.toArray()).sort((a, b) =>
+    b.updatedAt.localeCompare(a.updatedAt),
+  );
   return {
     categories: (await db.categories.toArray()).sort(
       (a, b) =>
         categories.findIndex((c) => c.id === a.id) -
         categories.findIndex((c) => c.id === b.id),
     ),
-    folders: (await db.folders.toArray()).filter(f => !f.deletedAt).sort((a, b) => a.order - b.order),
-    notes: notes.filter(n => !n.deletedAt),
-    trash: notes.filter(n => n.deletedAt).sort((a,b) => b.deletedAt!.localeCompare(a.deletedAt!)),
+    folders: (await db.folders.toArray())
+      .filter((f) => !f.deletedAt)
+      .sort((a, b) => a.order - b.order),
+    notes: notes.filter((n) => !n.deletedAt),
+    trash: notes
+      .filter((n) => n.deletedAt)
+      .sort((a, b) => b.deletedAt!.localeCompare(a.deletedAt!)),
   };
 }
 export async function addFolder(categoryId: string, name: string) {
@@ -87,7 +93,11 @@ export async function renameFolder(id: string, name: string) {
 export async function deleteFolder(id: string) {
   await db.transaction("rw", db.folders, db.notes, async () => {
     const deletedAt = new Date().toISOString();
-    await db.notes.where("folderId").equals(id).filter(n => !n.deletedAt).modify({ deletedAt });
+    await db.notes
+      .where("folderId")
+      .equals(id)
+      .filter((n) => !n.deletedAt)
+      .modify({ deletedAt });
     await db.folders.update(id, { deletedAt });
   });
 }
@@ -97,7 +107,9 @@ export async function moveFolder(id: string, direction: number) {
     if (!folder) return;
     const siblings = (
       await db.folders.where("categoryId").equals(folder.categoryId).toArray()
-    ).filter(f => !f.deletedAt).sort((a, b) => a.order - b.order);
+    )
+      .filter((f) => !f.deletedAt)
+      .sort((a, b) => a.order - b.order);
     const i = siblings.findIndex((f) => f.id === id),
       j = i + direction;
     if (j < 0 || j >= siblings.length) return;
@@ -111,7 +123,8 @@ export async function saveNote(note: Note) {
     if (!folder || folder.deletedAt || folder.categoryId !== note.categoryId)
       throw Error("保存先フォルダを選択してください。");
     const previous = await db.notes.get(note.id);
-    if (previous?.deletedAt || note.deletedAt) throw Error("ごみ箱のメモは復元してから編集してください。");
+    if (previous?.deletedAt || note.deletedAt)
+      throw Error("ごみ箱のメモは復元してから編集してください。");
     await db.notes.put({
       ...note,
       updatedAt:
@@ -129,24 +142,47 @@ export async function restoreNote(id: string) {
     const note = await db.notes.get(id);
     if (!note?.deletedAt) return;
     const folder = await db.folders.get(note.folderId);
-    if (!folder) throw Error("元のフォルダが見つかりません。バックアップから復元してください。");
-    if (folder.deletedAt) await db.folders.update(folder.id, { deletedAt: undefined });
-    await db.notes.update(id, { deletedAt: undefined, updatedAt: new Date().toISOString() });
+    if (!folder)
+      throw Error(
+        "元のフォルダが見つかりません。バックアップから復元してください。",
+      );
+    if (folder.deletedAt)
+      await db.folders.update(folder.id, { deletedAt: undefined });
+    await db.notes.update(id, {
+      deletedAt: undefined,
+      updatedAt: new Date().toISOString(),
+    });
   });
 }
 export async function permanentlyDeleteNote(id: string) {
-  await db.transaction("rw", db.notes, db.attachments, db.recordings, async () => {
-    if (!(await db.notes.get(id))?.deletedAt) throw Error("完全削除はごみ箱から行ってください。");
-    await db.attachments.where("noteId").equals(id).delete();
-    await db.recordings.where("noteId").equals(id).delete();
-    await db.notes.delete(id);
-  });
+  await db.transaction(
+    "rw",
+    db.notes,
+    db.attachments,
+    db.recordings,
+    async () => {
+      if (!(await db.notes.get(id))?.deletedAt)
+        throw Error("完全削除はごみ箱から行ってください。");
+      await db.attachments.where("noteId").equals(id).delete();
+      await db.recordings.where("noteId").equals(id).delete();
+      await db.notes.delete(id);
+    },
+  );
 }
-export async function toggleTodo(noteId: string, itemId: string, done: boolean) {
+export async function toggleTodo(
+  noteId: string,
+  itemId: string,
+  done: boolean,
+) {
   await db.transaction("rw", db.notes, async () => {
     const note = await db.notes.get(noteId);
     if (!note || note.deletedAt) throw Error("メモが見つかりません。");
-    await db.notes.update(noteId, { todos: (note.todos || []).map(t => t.id === itemId ? {...t, done} : t), updatedAt: new Date().toISOString() });
+    await db.notes.update(noteId, {
+      todos: (note.todos || []).map((t) =>
+        t.id === itemId ? { ...t, done } : t,
+      ),
+      updatedAt: new Date().toISOString(),
+    });
   });
 }
 export function newNote(folder: Folder): Note {
@@ -173,13 +209,25 @@ export function firstAttachment(noteId: string) {
 }
 export async function quickFolder(categoryId?: string, folderId?: string) {
   return db.transaction("rw", db.categories, db.folders, async () => {
-    const folders = (await db.folders.toArray()).filter(f => !f.deletedAt);
-    const existing = folders.find(f => f.id === folderId && (!categoryId || f.categoryId === categoryId))
-      || folders.find(f => f.categoryId === (categoryId || "life")) || (!categoryId ? folders[0] : undefined);
+    const folders = (await db.folders.toArray()).filter((f) => !f.deletedAt);
+    const existing =
+      folders.find(
+        (f) =>
+          f.id === folderId && (!categoryId || f.categoryId === categoryId),
+      ) ||
+      folders.find((f) => f.categoryId === (categoryId || "life")) ||
+      (!categoryId ? folders[0] : undefined);
     if (existing) return existing;
-    const category = await db.categories.get(categoryId || "life") || await db.categories.toCollection().first();
+    const category =
+      (await db.categories.get(categoryId || "life")) ||
+      (await db.categories.toCollection().first());
     if (!category) throw Error("カテゴリーを読み込めませんでした。");
-    const folder: Folder = { id: crypto.randomUUID(), categoryId: category.id, name: "クイックメモ", order: 0 };
+    const folder: Folder = {
+      id: crypto.randomUUID(),
+      categoryId: category.id,
+      name: "クイックメモ",
+      order: 0,
+    };
     await db.folders.add(folder);
     return folder;
   });
@@ -267,13 +315,17 @@ export function listRecordings(noteId: string) {
 }
 export async function saveRecording(recording: Recording) {
   await validateAudio(recording.blob, recording.mimeType);
-  if (!Number.isFinite(recording.durationSeconds) || recording.durationSeconds < 0 || recording.durationSeconds > MAX_AUDIO_SECONDS + 10)
+  if (
+    !Number.isFinite(recording.durationSeconds) ||
+    recording.durationSeconds < 0 ||
+    recording.durationSeconds > MAX_AUDIO_SECONDS + 10
+  )
     throw Error("録音時間が上限を超えています。");
   await db.transaction("rw", db.notes, db.recordings, async () => {
     const note = await db.notes.get(recording.noteId);
     if (!note || note.deletedAt) throw Error("保存先のメモがありません。");
     await db.recordings.put(recording);
-    await db.notes.update(note.id, {updatedAt:new Date().toISOString()});
+    await db.notes.update(note.id, { updatedAt: new Date().toISOString() });
   });
 }
 export async function removeRecording(id: string) {
@@ -281,6 +333,8 @@ export async function removeRecording(id: string) {
     const recording = await db.recordings.get(id);
     if (!recording) return;
     await db.recordings.delete(id);
-    await db.notes.update(recording.noteId, {updatedAt:new Date().toISOString()});
+    await db.notes.update(recording.noteId, {
+      updatedAt: new Date().toISOString(),
+    });
   });
 }
