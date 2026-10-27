@@ -1,5 +1,6 @@
 import { FileText, ChevronRight, NotebookPen, Plus } from "lucide-react";
 import type { Note, Category, Folder } from "../data/model";
+import NoteThumbnail from "./NoteThumbnail";
 export default function NoteList({
   notes,
   categories,
@@ -23,27 +24,22 @@ export default function NoteList({
         const c = categories.find((c) => c.id === n.categoryId);
         return (
           <button className="note-row" key={n.id} onClick={() => onOpen(n)}>
-            <span className={`note-symbol ${c?.color}`}>
-              <FileText size={20} />
-            </span>
+            <NoteThumbnail noteId={n.id} updatedAt={n.updatedAt} />
             <span className="note-summary">
               <strong>{n.title || "無題のメモ"}</strong>
               <span>
                 {n.body.trim().split("\n")[0] || "自由にメモを書き始めましょう"}
               </span>
               <small>
-                <b className={c?.color}>{c?.name}</b>{" "}
-                {folders.find((f) => f.id === n.folderId)?.name}{" "}
-                {n.tags.map((t) => "#" + t).join(" ")}
+                <b className={`category-badge ${c?.color}`}>{c?.name}</b>{" "}
+                <span className="note-folder">{folders.find((f) => f.id === n.folderId)?.name}</span>{" "}
+                {n.tags.map(t => <span className="tag-pill" key={t}>#{t}</span>)}
               </small>
+              <time className="note-updated" dateTime={n.updatedAt}>
+                {new Date(n.updatedAt).toLocaleString("ja-JP", {month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit"})}
+              </time>
             </span>
-            <span className="note-time">
-              {new Date(n.updatedAt).toLocaleDateString("ja-JP", {
-                month: "numeric",
-                day: "numeric",
-              })}
-              <ChevronRight size={16} />
-            </span>
+            <ChevronRight className="note-chevron" size={16} />
           </button>
         );
       })}

@@ -41,7 +41,7 @@ function Thumbnail({
           role="img"
           aria-label={item.name}
         >
-          <image href={url} width={item.width} height={item.height} />
+          {url && <image href={url} width={item.width} height={item.height} />}
           <AnnotationView items={item.annotations} />
         </svg>
         <ZoomIn size={18} />

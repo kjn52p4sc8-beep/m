@@ -213,7 +213,7 @@ export default function ImageEditor({
             setStroke(null);
           }}
         >
-          <image href={url} width={item.width} height={item.height} />
+          {url && <image href={url} width={item.width} height={item.height} />}
           <AnnotationView items={stroke ? [...items, stroke] : items} />
         </svg>
       </div>

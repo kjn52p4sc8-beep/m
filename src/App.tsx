@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { installViewportTracking } from "./platform/viewport";
 import { useScreenScroll } from "./platform/useScreenScroll";
 import KeyboardDismiss from "./components/KeyboardDismiss";
 import {
   BookOpen,
+  LayoutGrid,
   BriefcaseBusiness,
   Wallet,
   Sprout,
@@ -35,6 +36,7 @@ import {
   newNote,
   saveNote,
   removeNote,
+  quickFolder,
 } from "./data/repository";
 import DataSettings from "./components/DataSettings";
 import PwaSettings from "./components/PwaSettings";
@@ -73,6 +75,7 @@ export default function App() {
       }
     }),
     [newDialog, setNewDialog] = useState(false);
+  const createLock = useRef(false);
   useEffect(installViewportTracking, []);
   useScreenScroll(
     editing
@@ -118,18 +121,31 @@ export default function App() {
     }
   }
   async function create(folder: Folder) {
+    if (createLock.current) return;
+    createLock.current = true;
     setCreating(true);
     try {
       const note = newNote(folder);
       await saveNote(note);
       await refresh();
       setEditing(note);
+      try { localStorage.setItem("my-memo-last-folder", folder.id); } catch {}
       setNewDialog(false);
     } catch {
       setError("メモを作成できませんでした。もう一度お試しください。");
     } finally {
       setCreating(false);
+      createLock.current = false;
     }
+  }
+  async function quickCreate() {
+    if (creating || createLock.current) return;
+    try {
+      let last = "";
+      try { last = localStorage.getItem("my-memo-last-folder") || ""; } catch {}
+      const folder = await quickFolder(view === "category" ? categoryId : undefined, folderId || last);
+      await create(folder);
+    } catch { setError("メモを作成できませんでした。再試行してください。"); }
   }
   function go(next: View) {
     setView(next);
@@ -175,7 +191,7 @@ export default function App() {
           </span>
           My Memo<span className="brand-dot">.</span>
         </button>
-        <p className="brand-caption">暮らしを、ひとつに。</p>
+        
         <div className="side-nav">
           {[
             [Home, "ホーム", "home"],
@@ -248,9 +264,6 @@ export default function App() {
                     ? "設定"
                     : selected?.name}
           </span>
-          <span className="private-label">
-            <span /> PERSONAL SPACE
-          </span>
           <button
             className="avatar"
             aria-label="設定を開く"
@@ -297,72 +310,17 @@ export default function App() {
             <>
               {view === "home" && (
                 <>
-                  <div className="welcome">
-                    <div>
-                      <div className="eyebrow">YOUR EVERYDAY, ORGANIZED</div>
-                      <h1>
-                        毎日を、書きとめよう<span>。</span>
-                      </h1>
-                      <p>思いつきも、大切なことも。ここにまとめて。</p>
-                    </div>
-                    <button
-                      className="primary desktop-create"
-                      onClick={() => setNewDialog(true)}
-                    >
-                      <Plus size={18} />
-                      メモを作成
-                    </button>
-                  </div>
-                  <button
-                    className="search-launch"
-                    onClick={() => go("search")}
-                  >
-                    <Search size={20} />
-                    <span>メモ、タグ、リンクを検索</span>
-                    <kbd>検索</kbd>
+                  <button className="search-launch" aria-label="メモ、タグ、リンクを検索 検索" onClick={() => go("search")}>
+                    <Search size={21} /><span>メモ、タグ、リンクを検索</span>
                   </button>
-                  <div className="section-heading">
-                    <h2>カテゴリー</h2>
-                    <span className="muted">4つのスペース</span>
-                  </div>
-                  <div className="category-grid">
-                    {data.categories.map((c) => {
-                      const Icon = icons[c.id] || NotebookPen;
-                      return (
-                        <button
-                          className={`category-card ${c.color}`}
-                          key={c.id}
-                          onClick={() => openCategory(c)}
-                        >
-                          <div className="category-top">
-                            <span className="category-icon">
-                              <Icon size={25} strokeWidth={1.7} />
-                            </span>
-                            <ChevronRight size={18} />
-                          </div>
-                          <h3>{c.name}</h3>
-                          <p>{c.description}</p>
-                          <div className="category-meta">
-                            <span>
-                              {
-                                data.notes.filter((n) => n.categoryId === c.id)
-                                  .length
-                              }{" "}
-                              メモ
-                            </span>
-                            <span>·</span>
-                            <span>
-                              {
-                                data.folders.filter(
-                                  (f) => f.categoryId === c.id,
-                                ).length
-                              }{" "}
-                              フォルダ
-                            </span>
-                          </div>
-                        </button>
-                      );
-                    })}
+                  <h2 className="sr-only">カテゴリー</h2>
+                  <div className="category-tabs" aria-label="カテゴリー切り替え">
+                    <button className="selected" aria-pressed="true" onClick={() => go("home")}><LayoutGrid size={19} />すべて</button>
+                    {data.categories.map(c => { const Icon = icons[c.id] || NotebookPen; return (
+                      <button key={c.id} aria-label={`${c.name} ${c.description}`} aria-pressed="false" onClick={() => openCategory(c)}>
+                        <Icon size={19} className={c.color} />{c.name}
+                      </button>
+                    ); })}
                   </div>
                   <div className="section-heading recent-heading">
                     <h2>
@@ -377,11 +335,7 @@ export default function App() {
                       <ChevronRight size={15} />
                     </button>
                   </div>
-                  {noteList(data.notes.slice(0, 5))}
-                  <div className="home-tip">
-                    <span>✦</span>
-                    <p>今日のひらめきが、明日の自分をつくる。</p>
-                  </div>
+                  {noteList(data.notes.slice(0, 30))}
                 </>
               )}
               {view === "category" && (
@@ -392,7 +346,6 @@ export default function App() {
                   </button>
                   <div className="section-heading">
                     <div>
-                      <div className="eyebrow">MY COLLECTION</div>
                       <h1>{selected?.name}</h1>
                     </div>
                     <button
@@ -545,7 +498,6 @@ export default function App() {
               )}
               {view === "search" && (
                 <>
-                  <div className="eyebrow">FIND YOUR IDEAS</div>
                   <h1>メモを検索</h1>
                   <p className="muted">
                     すべてのカテゴリーから、探していたひとことを。
@@ -584,7 +536,6 @@ export default function App() {
               )}
               {view === "settings" && (
                 <>
-                  <div className="eyebrow">MAKE IT YOURS</div>
                   <h1>設定</h1>
                   <section className="settings-card">
                     <h2>
@@ -632,10 +583,8 @@ export default function App() {
             </>
           )}
         </main>
-        <footer className="desktop-footer">
-          My Memo <span>自分だけの、小さな整理整頓。</span>
-        </footer>
       </div>
+      {!editing && !loading && <button className="floating-create" aria-label="クイックメモを作成" disabled={creating} onClick={() => void quickCreate()}><Plus size={28} /></button>}
       {!editing && (
         <nav className="bottom-nav" aria-label="メインメニュー">
           <button

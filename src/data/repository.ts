@@ -136,6 +136,22 @@ export function newNote(folder: Folder): Note {
 export async function listAttachments(noteId: string) {
   return db.attachments.where("noteId").equals(noteId).sortBy("createdAt");
 }
+export function firstAttachment(noteId: string) {
+  return db.attachments.where("noteId").equals(noteId).first();
+}
+export async function quickFolder(categoryId?: string, folderId?: string) {
+  return db.transaction("rw", db.categories, db.folders, async () => {
+    const folders = await db.folders.toArray();
+    const existing = folders.find(f => f.id === folderId && (!categoryId || f.categoryId === categoryId))
+      || folders.find(f => f.categoryId === (categoryId || "life")) || (!categoryId ? folders[0] : undefined);
+    if (existing) return existing;
+    const category = await db.categories.get(categoryId || "life") || await db.categories.toCollection().first();
+    if (!category) throw Error("カテゴリーを読み込めませんでした。");
+    const folder: Folder = { id: crypto.randomUUID(), categoryId: category.id, name: "クイックメモ", order: 0 };
+    await db.folders.add(folder);
+    return folder;
+  });
+}
 export async function addAttachments(items: Attachment[]) {
   await db.transaction("rw", db.notes, db.attachments, async () => {
     for (const item of items) {
