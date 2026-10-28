@@ -1,6 +1,6 @@
 # My Memo
 
-iPhone Safari向けの日本語メモアプリ。既存アプリを拡張した0.4.0です。React / TypeScript / Vite / Tailwind CSS / Dexie（IndexedDB）を使用し、サーバー・ログインなしで端末内に保存します。
+iPhone Safari向けの日本語メモアプリ。既存アプリを拡張した0.4.1です。React / TypeScript / Vite / Tailwind CSS / Dexie（IndexedDB）を使用し、サーバー・ログインなしで端末内に保存します。
 
 ## 起動と検証
 
@@ -103,3 +103,7 @@ Safariの共有メニューから「ホーム画面に追加」。公開前に�
 - `src/data/*.test.ts`, `tests/`：単体・操作・PWAテスト。
 
 今回の検証結果・未実装項目は [0.4.0作業報告](docs/implementation/release-0.4.md)。以前の点検記録は [AUDIT.md](AUDIT.md)、デザイン検討・段階実装記録は `docs/design/` と `docs/implementation/refresh-progress.md` に保存しています。
+
+## 0.4.1：オフライン機能の案内
+
+HTTPSの安全な接続とService Worker対応を別々に判定します。HTTPSでもアプリ内ブラウザ等で機能が使えない場合はSafariで直接開く手順を表示します。制限のあるブラウザでは、設定からURLのコピーとオンライン時の通常再読み込みを利用できます。通常再読み込みではDBやサイトデータを削除しません。ブラウザ変更では保存先が異なるため、元の環境のJSONを保持して移行してください。オフライン非対応の環境を、アプリ側で強制的に対応させる変更ではありません。

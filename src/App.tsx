@@ -839,7 +839,7 @@ export default function App() {
                     <p>
                       クラウド同期は未対応です。データはこの端末内に保存されます。
                     </p>
-                    <small>My Memo 0.4.0</small>
+                    <small>My Memo 0.4.1</small>
                   </section>
                 </>
               )}

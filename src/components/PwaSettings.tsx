@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { registerPwa } from "../pwa";
+import { registerPwa, pwaUnavailableReason } from "../pwa";
 export default function PwaSettings() {
   const [offline, setOffline] = useState(!navigator.onLine),
     [status, setStatus] = useState(""),
     [waiting, setWaiting] = useState<ServiceWorker | null>(null),
-    [checking, setChecking] = useState(false);
+    [checking, setChecking] = useState(false),
+    [recovery, setRecovery] = useState(false),
+    [copyStatus, setCopyStatus] = useState("");
   const cleanup = useRef<() => void>(() => {});
   useEffect(() => {
     const update = () => setOffline(!navigator.onLine);
@@ -50,11 +52,17 @@ export default function PwaSettings() {
   async function check() {
     if (checking) return;
     setChecking(true);
+    setRecovery(false);
+    setCopyStatus("");
     try {
-      if (!("serviceWorker" in navigator)) {
-        setStatus(
-          "このブラウザではオフライン機能を利用できません。HTTPS接続をご確認ください。",
-        );
+      const unavailable = pwaUnavailableReason(
+        window.isSecureContext,
+        "serviceWorker" in navigator,
+      );
+      if (unavailable) {
+        setWaiting(null);
+        setStatus(unavailable);
+        setRecovery(true);
         return;
       }
       let reg = await navigator.serviceWorker.getRegistration();
@@ -84,10 +92,16 @@ export default function PwaSettings() {
             : "準備に失敗しました。通信状態を確認して再試行してください。",
         );
       }
-    } catch {
+    } catch (error) {
+      const restricted =
+        error instanceof Error &&
+        ["SecurityError", "NotAllowedError"].includes(error.name);
       setStatus(
-        "準備を確認できませんでした。通信状態を確認して再試行してください。",
+        restricted
+          ? "ブラウザの制限によりオフライン機能を確認できません。アプリ内ブラウザの場合はSafariで直接開いてください。"
+          : "オフライン機能を確認できませんでした。通信状態を確認して再試行してください。Safariで直接開くと利用できる場合もあります。",
       );
+      setRecovery(true);
     } finally {
       setChecking(false);
     }
@@ -112,6 +126,50 @@ export default function PwaSettings() {
         {checking ? "確認中…" : "オフライン準備・更新を確認"}
       </button>
       {status && <p role="status">{status}</p>}
+      {recovery && (
+        <div className="pwa-recovery">
+          <p>
+            iPhoneのSafariを起動し、下のURLをアドレス欄へ貼り付けて開いてください。
+          </p>
+          <label className="field">
+            このアプリのURL
+            <input
+              aria-label="このアプリのURL"
+              readOnly
+              value={location.origin}
+              onClick={(e) => e.currentTarget.select()}
+            />
+          </label>
+          <div className="settings-actions">
+            <button
+              className="text-button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(location.origin);
+                  setCopyStatus("URLをコピーしました。");
+                } catch {
+                  setCopyStatus(
+                    "コピーできませんでした。URL欄を長押ししてコピーしてください。",
+                  );
+                }
+              }}
+            >
+              URLをコピー
+            </button>
+            <button
+              className="text-button"
+              disabled={offline}
+              onClick={() => location.reload()}
+            >
+              画面を再読み込み
+            </button>
+          </div>
+          {copyStatus && <p role="status">{copyStatus}</p>}
+          <p className="fine-print">
+            再読み込みはオンライン時に利用できます。ブラウザを変えるとメモの保存先が変わるため、移動前に設定からJSONを保存してください。サイトデータの削除は不要です。
+          </p>
+        </div>
+      )}
       {waiting && (
         <button
           className="primary"

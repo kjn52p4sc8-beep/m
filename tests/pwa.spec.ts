@@ -202,3 +202,77 @@ test("typed budgets, repayments and colored text remain editable offline", async
   await page.getByRole("button", { name: /貸し借りの記録/ }).click();
   await expect(page.locator(".loan-status")).toContainText("￥500");
 });
+
+test("unsupported secure browsers get Safari guidance and can reload without losing notes", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    delete (Navigator.prototype as unknown as Record<string, unknown>)
+      .serviceWorker;
+  });
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "クイックメモを作成", exact: true })
+    .click();
+  await page
+    .getByLabel("タイトル", { exact: true })
+    .fill("通常更新でも残るメモ");
+  await page
+    .getByLabel("本文", { exact: true })
+    .fill("オフライン機能がなくても保持");
+  await page.getByRole("button", { name: "戻る", exact: true }).click();
+  await page.getByRole("button", { name: "設定を開く" }).click();
+  await page
+    .getByRole("button", { name: "オフライン準備・更新を確認" })
+    .click();
+  await expect(page.getByRole("status")).toContainText("アプリ内ブラウザ");
+  await expect(page.getByRole("status")).not.toContainText("HTTPS");
+  await expect(page.getByLabel("このアプリのURL")).toHaveValue(
+    new URL(page.url()).origin,
+  );
+  await page.evaluate(() =>
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async () => {
+          throw new DOMException("denied", "NotAllowedError");
+        },
+      },
+    }),
+  );
+  await page.getByRole("button", { name: "URLをコピー", exact: true }).click();
+  await expect(
+    page.getByText(
+      "コピーできませんでした。URL欄を長押ししてコピーしてください。",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "画面を再読み込み", exact: true })
+    .click();
+  await page.getByRole("button", { name: /通常更新でも残るメモ/ }).click();
+  await expect(page.getByLabel("本文", { exact: true })).toHaveValue(
+    "オフライン機能がなくても保持",
+  );
+});
+test("browser security restrictions show recovery guidance rather than an HTTPS diagnosis", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      get() {
+        throw new DOMException("denied", "SecurityError");
+      },
+    }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "設定を開く" }).click();
+  await page
+    .getByRole("button", { name: "オフライン準備・更新を確認" })
+    .click();
+  await expect(page.getByRole("status")).toContainText("ブラウザの制限");
+  await expect(
+    page.getByRole("button", { name: "画面を再読み込み", exact: true }),
+  ).toBeVisible();
+});
