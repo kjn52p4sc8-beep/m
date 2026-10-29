@@ -1,5 +1,8 @@
+import ShareNote from "./ShareNote";
+import { serviceName } from "../data/sharing";
 import { useEffect, useRef, useState } from "react";
 import {
+  Share2,
   ArrowLeft,
   Trash2,
   Check,
@@ -52,6 +55,7 @@ export default function Editor({
     [url, setUrl] = useState(""),
     [linkTitle, setLinkTitle] = useState(""),
     [linkTags, setLinkTags] = useState("");
+  const [sharing, setSharing] = useState(false);
   const [selection, setSelection] = useState<[number, number]>([0, 0]);
   const [pen, setPen] = useState<PenColor>(() => {
     try {
@@ -213,6 +217,7 @@ export default function Editor({
   }
   return (
     <div className="editor">
+      {sharing && <ShareNote note={note} onClose={() => setSharing(false)} />}
       <div className="editor-toolbar">
         <button
           onClick={() => void close()}
@@ -229,6 +234,15 @@ export default function Editor({
           onClick={() => change({ favorite: !note.favorite })}
         >
           {note.favorite ? "★" : "☆"}
+        </button>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="メモの文章を共有"
+          disabled={busy || audioBusy || imageBusy}
+          onClick={() => setSharing(true)}
+        >
+          <Share2 size={18} />
         </button>
         <span className="save-status" role="status">
           <Check size={15} />
@@ -478,7 +492,7 @@ export default function Editor({
                 <span>
                   {link.title}
                   <small>
-                    {new URL(link.url).hostname}{" "}
+                    {serviceName(link.url)}{" "}
                     {link.tags.map((t) => "#" + t).join(" ")}
                   </small>
                 </span>

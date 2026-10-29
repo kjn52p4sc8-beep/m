@@ -55,7 +55,10 @@ test("image compression, preview, JSON backup and atomic restore", async ({
   });
   await expect(page.getByRole("alert")).toBeVisible();
   await page.goto("/");
-  await page.getByRole("button", { name: /画像付き日記/ }).click();
+  await page
+    .getByRole("button", { name: /画像付き日記/ })
+    .and(page.locator(".note-row"))
+    .click();
   page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "メモを削除", exact: true }).click();
   await page.getByRole("button", { name: "設定を開く" }).click();
@@ -72,9 +75,14 @@ test("image compression, preview, JSON backup and atomic restore", async ({
     buffer: bytes,
   });
   await page.getByRole("button", { name: "すべて置き換えて復元" }).click();
-  await expect(page.getByRole("status")).toContainText("復元しました");
+  await expect(
+    page.getByRole("status").filter({ hasText: "復元しました" }),
+  ).toContainText("復元しました");
   await page.goto("/");
-  await page.getByRole("button", { name: /画像付き日記/ }).click();
+  await page
+    .getByRole("button", { name: /画像付き日記/ })
+    .and(page.locator(".note-row"))
+    .click();
   await expect(
     page.getByRole("button", { name: "photo.pngを拡大" }),
   ).toBeVisible();
@@ -137,7 +145,10 @@ test("text and handwriting annotations remain editable after reload and backup",
   await page.getByRole("button", { name: "画像を閉じる" }).click();
   await page.getByRole("button", { name: "戻る", exact: true }).click();
   await page.reload();
-  await page.getByRole("button", { name: /注釈テスト/ }).click();
+  await page
+    .getByRole("button", { name: /注釈テスト/ })
+    .and(page.locator(".note-row"))
+    .click();
   await page.getByRole("button", { name: "memo.pngを拡大" }).click();
   await page.getByRole("button", { name: "重要ポイント", exact: true }).click();
   await page.getByRole("textbox", { name: "注釈の文字" }).fill("編集後の文字");
@@ -167,9 +178,14 @@ test("text and handwriting annotations remain editable after reload and backup",
     buffer: bytes,
   });
   await page.getByRole("button", { name: "すべて置き換えて復元" }).click();
-  await expect(page.getByRole("status")).toContainText("復元しました");
+  await expect(
+    page.getByRole("status").filter({ hasText: "復元しました" }),
+  ).toContainText("復元しました");
   await page.goto("/");
-  await page.getByRole("button", { name: /注釈テスト/ }).click();
+  await page
+    .getByRole("button", { name: /注釈テスト/ })
+    .and(page.locator(".note-row"))
+    .click();
   await page.getByRole("button", { name: "memo.pngを拡大" }).click();
   await expect(
     page.getByRole("button", { name: "編集後の文字", exact: true }),

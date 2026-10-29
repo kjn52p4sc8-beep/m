@@ -49,7 +49,11 @@ test("folder CRUD, note autosave, reload, links and cross-category search", asyn
   );
   await page.getByRole("button", { name: "戻る", exact: true }).click();
   await page.reload();
-  await expect(page.getByRole("button", { name: /旅行の予算/ })).toBeVisible();
+  await expect(
+    page
+      .getByRole("button", { name: /旅行の予算/ })
+      .and(page.locator(".note-row")),
+  ).toBeVisible();
   await page.getByRole("button", { name: "メモ、タグ、リンクを検索" }).click();
   for (const query of [
     "旅行の予算",
@@ -61,10 +65,15 @@ test("folder CRUD, note autosave, reload, links and cross-category search", asyn
   ]) {
     await page.getByRole("searchbox", { name: "検索キーワード" }).fill(query);
     await expect(
-      page.getByRole("button", { name: /旅行の予算/ }),
+      page
+        .getByRole("button", { name: /旅行の予算/ })
+        .and(page.locator(".note-row")),
     ).toBeVisible();
   }
-  await page.getByRole("button", { name: /旅行の予算/ }).click();
+  await page
+    .getByRole("button", { name: /旅行の予算/ })
+    .and(page.locator(".note-row"))
+    .click();
   await expect(
     page.getByRole("textbox", { name: "本文", exact: true }),
   ).toHaveValue("京都に行く。予算は三万円。");
@@ -152,7 +161,9 @@ test("save failure is visible and can be retried without losing edits", async ({
   await expect(page.getByRole("status")).toContainText("保存済み");
   await page.reload();
   await expect(
-    page.getByRole("button", { name: /保存失敗から復旧/ }),
+    page
+      .getByRole("button", { name: /保存失敗から復旧/ })
+      .and(page.locator(".note-row")),
   ).toBeVisible();
 });
 

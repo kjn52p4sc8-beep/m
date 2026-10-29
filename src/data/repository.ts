@@ -1,3 +1,10 @@
+import {
+  validateTodos,
+  taskRows,
+  notificationTime,
+  reminderKey,
+} from "./todos";
+import type { TodoItem } from "./model";
 import Dexie, { type Table } from "dexie";
 import {
   categories,
@@ -16,6 +23,10 @@ export class MemoDatabase extends Dexie {
   notes!: Table<Note, string>;
   attachments!: Table<Attachment, string>;
   recordings!: Table<Recording, string>;
+  reminderReceipts!: Table<
+    { id: string; noteId: string; shownAt: string },
+    string
+  >;
   constructor(name = "my-memo") {
     super(name);
     this.version(1).stores({
@@ -34,6 +45,7 @@ export class MemoDatabase extends Dexie {
     this.version(5).stores({
       notes: "id, categoryId, folderId, updatedAt, deletedAt, lastOpenedAt",
     });
+    this.version(6).stores({ reminderReceipts: "id, noteId" });
   }
 }
 export const db = new MemoDatabase();
@@ -122,6 +134,7 @@ export async function moveFolder(id: string, direction: number) {
   });
 }
 export async function saveNote(note: Note) {
+  validateTodos(note.todos);
   await db.transaction("rw", db.folders, db.notes, async () => {
     const folder = await db.folders.get(note.folderId);
     if (!folder || folder.deletedAt || folder.categoryId !== note.categoryId)
@@ -165,11 +178,13 @@ export async function permanentlyDeleteNote(id: string) {
     db.notes,
     db.attachments,
     db.recordings,
+    db.reminderReceipts,
     async () => {
       if (!(await db.notes.get(id))?.deletedAt)
         throw Error("完全削除はごみ箱から行ってください。");
       await db.attachments.where("noteId").equals(id).delete();
       await db.recordings.where("noteId").equals(id).delete();
+      await db.reminderReceipts.where("noteId").equals(id).delete();
       await db.notes.delete(id);
     },
   );
@@ -290,11 +305,14 @@ export async function replaceAll(
 ) {
   await db.transaction(
     "rw",
-    db.categories,
-    db.folders,
-    db.notes,
-    db.attachments,
-    db.recordings,
+    [
+      db.categories,
+      db.folders,
+      db.notes,
+      db.attachments,
+      db.recordings,
+      db.reminderReceipts,
+    ],
     async () => {
       await Promise.all([
         db.categories.clear(),
@@ -302,6 +320,7 @@ export async function replaceAll(
         db.notes.clear(),
         db.attachments.clear(),
         db.recordings.clear(),
+        db.reminderReceipts.clear(),
       ]);
       await db.categories.bulkAdd(data.categories);
       await db.folders.bulkAdd(data.folders);
@@ -346,4 +365,84 @@ export async function removeRecording(id: string) {
 
 export async function markOpened(id: string) {
   await db.notes.update(id, { lastOpenedAt: new Date().toISOString() });
+}
+
+export async function saveTodoItem(noteId: string, item: TodoItem) {
+  validateTodos([item]);
+  await db.transaction("rw", db.notes, async () => {
+    const note = await db.notes.get(noteId);
+    if (!note || note.deletedAt || !note.todos?.some((t) => t.id === item.id))
+      throw Error("ToDoが見つかりません。");
+    await db.notes.update(noteId, {
+      todos: note.todos.map((t) => (t.id === item.id ? item : t)),
+      updatedAt: new Date().toISOString(),
+    });
+  });
+}
+export async function deleteTodoItem(noteId: string, itemId: string) {
+  await db.transaction("rw", db.notes, async () => {
+    const n = await db.notes.get(noteId);
+    if (!n || n.deletedAt) throw Error("ToDoが見つかりません。");
+    await db.notes.update(noteId, {
+      todos: (n.todos || []).filter((t) => t.id !== itemId),
+      updatedAt: new Date().toISOString(),
+    });
+  });
+}
+export async function addQuickTodo(item: TodoItem, categoryId?: string) {
+  validateTodos([item]);
+  if (!item.text.trim()) throw Error("やることを入力してください。");
+  const folder = await quickFolder(categoryId);
+  return db.transaction("rw", db.notes, db.folders, async () => {
+    const destination = await db.folders.get(folder.id);
+    if (
+      !destination ||
+      destination.deletedAt ||
+      destination.categoryId !== folder.categoryId
+    )
+      throw Error("保存先を確認してください。");
+    const existing = await db.notes
+      .where("categoryId")
+      .equals(folder.categoryId)
+      .filter((n) => !n.deletedAt && n.purpose === "quick-todos")
+      .first();
+    const note = existing || {
+      ...newNote(folder),
+      title: "やること",
+      purpose: "quick-todos" as const,
+    };
+    if ((note.todos || []).some((t) => t.id === item.id)) return note.id;
+    const todos = validateTodos([...(note.todos || []), item]);
+    await db.notes.put({ ...note, todos, updatedAt: new Date().toISOString() });
+    return note.id;
+  });
+}
+export async function claimDueReminders(
+  now = Date.now(),
+  canDeliver: () => boolean = () => true,
+) {
+  return db.transaction("rw", db.notes, db.reminderReceipts, async () => {
+    const result: {
+      noteId: string;
+      item: TodoItem;
+      key: string;
+      at: number;
+    }[] = [];
+    for (const { note, item } of taskRows(await db.notes.toArray())) {
+      const at = notificationTime(item);
+      if (at === null || at > now) continue;
+      const key = reminderKey(note.id, item);
+      if (await db.reminderReceipts.get(key)) continue;
+      if (!canDeliver()) throw Error("Reminder cancelled");
+      await db.reminderReceipts.add({
+        id: key,
+        noteId: note.id,
+        shownAt: new Date(now).toISOString(),
+      });
+      result.push({ noteId: note.id, item, key, at });
+      if (result.length === 5) break;
+    }
+    if (!canDeliver()) throw Error("Reminder cancelled");
+    return result;
+  });
 }

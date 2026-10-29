@@ -40,13 +40,19 @@ test("production PWA boots and edits a saved note offline", async ({
   await page.getByRole("button", { name: "戻る", exact: true }).click();
   await context.setOffline(true);
   await page.reload();
-  await page.getByRole("button", { name: /オフラインメモ/ }).click();
+  await page
+    .getByRole("button", { name: /オフラインメモ/ })
+    .and(page.locator(".note-row"))
+    .click();
   await page
     .getByRole("textbox", { name: "本文", exact: true })
     .fill("通信なしで保存");
   await expect(page.getByRole("status")).toContainText("保存済み");
   await page.reload();
-  await page.getByRole("button", { name: /オフラインメモ/ }).click();
+  await page
+    .getByRole("button", { name: /オフラインメモ/ })
+    .and(page.locator(".note-row"))
+    .click();
   await expect(
     page.getByRole("textbox", { name: "本文", exact: true }),
   ).toHaveValue("通信なしで保存");
@@ -148,7 +154,9 @@ test("new service worker shows an update button and preserves data after activat
     page.once("dialog", (d) => d.accept());
     await page.getByRole("button", { name: "更新して再読み込み" }).click();
     await expect(
-      page.getByRole("button", { name: /更新で残るメモ/ }),
+      page
+        .getByRole("button", { name: /更新で残るメモ/ })
+        .and(page.locator(".note-row")),
     ).toBeVisible();
     expect(await page.evaluate(() => caches.keys())).toEqual([
       expect.stringMatching(/-test-2$/),
@@ -183,7 +191,10 @@ test("typed budgets, repayments and colored text remain editable offline", async
   await page.getByLabel("本文", { exact: true }).press("!");
   await page.getByRole("button", { name: "戻る", exact: true }).click();
   await page.reload();
-  await page.getByRole("button", { name: /機内で旅行予算/ }).click();
+  await page
+    .getByRole("button", { name: /機内で旅行予算/ })
+    .and(page.locator(".note-row"))
+    .click();
   await expect(page.locator(".finance-summary")).toContainText("￥65,000");
   await expect(page.locator(".body-color-layer .pen-blue")).toHaveText("!");
   await page.getByRole("button", { name: "戻る", exact: true }).click();
@@ -199,7 +210,10 @@ test("typed budgets, repayments and colored text remain editable offline", async
   await page.getByRole("button", { name: "返済を記録" }).click();
   await page.getByRole("button", { name: "戻る", exact: true }).click();
   await page.reload();
-  await page.getByRole("button", { name: /貸し借りの記録/ }).click();
+  await page
+    .getByRole("button", { name: /貸し借りの記録/ })
+    .and(page.locator(".note-row"))
+    .click();
   await expect(page.locator(".loan-status")).toContainText("￥500");
 });
 
@@ -250,7 +264,10 @@ test("unsupported secure browsers get Safari guidance and can reload without los
   await page
     .getByRole("button", { name: "画面を再読み込み", exact: true })
     .click();
-  await page.getByRole("button", { name: /通常更新でも残るメモ/ }).click();
+  await page
+    .getByRole("button", { name: /通常更新でも残るメモ/ })
+    .and(page.locator(".note-row"))
+    .click();
   await expect(page.getByLabel("本文", { exact: true })).toHaveValue(
     "オフライン機能がなくても保持",
   );
@@ -275,4 +292,39 @@ test("browser security restrictions show recovery guidance rather than an HTTPS 
   await expect(
     page.getByRole("button", { name: "画面を再読み込み", exact: true }),
   ).toBeVisible();
+});
+
+test("quick ToDo deadlines and captured links survive an offline restart", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/");
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();
+  await context.setOffline(true);
+  await page.getByRole("button", { name: "ToDoを追加", exact: true }).click();
+  await page.getByLabel("やること", { exact: true }).fill("オフラインの提出");
+  await page.getByText("期限・通知（任意）", { exact: true }).click();
+  await page.getByLabel("期限日時", { exact: true }).fill("2040-01-01T10:00");
+  await page.getByRole("button", { name: "追加", exact: true }).click();
+  await page.getByRole("button", { name: "作成メニューを開く" }).click();
+  await page
+    .getByRole("button", { name: "URL・テキストを保存", exact: true })
+    .click();
+  await page
+    .getByLabel("URL・テキスト", { exact: true })
+    .fill("後で確認 https://www.instagram.com/p/example/");
+  await page.getByRole("button", { name: "メモに保存", exact: true }).click();
+  await page.getByRole("button", { name: "戻る", exact: true }).click();
+  await page.reload();
+  await expect(page.locator(".todo-panel")).toContainText("オフラインの提出");
+  await expect(page.locator(".todo-panel")).toContainText("1/1 10:00");
+  await page
+    .getByRole("button", { name: /Instagram 後で確認/ })
+    .and(page.locator(".note-row"))
+    .click();
+  await expect(page.getByRole("link", { name: /Instagram/ })).toHaveAttribute(
+    "href",
+    "https://www.instagram.com/p/example/",
+  );
 });

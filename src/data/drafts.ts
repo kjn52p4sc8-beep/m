@@ -1,3 +1,4 @@
+import { validateTodos } from "./todos";
 import { validateTrip, validateLoans } from "./finance";
 import { validateProductivity } from "./productivity";
 import type { Note, Folder } from "./model";
@@ -82,17 +83,8 @@ export function recoverDraft(initial: Note, folders: Folder[]) {
       )
     )
       return null;
-    if (
-      n.todos &&
-      (!Array.isArray(n.todos) ||
-        !n.todos.every(
-          (t) =>
-            typeof t.id === "string" &&
-            typeof t.text === "string" &&
-            typeof t.done === "boolean",
-        ))
-    )
-      return null;
+    validateTodos(n.todos);
+    if (n.purpose !== undefined && n.purpose !== "quick-todos") return null;
     const folder = folders.find(
       (f) =>
         f.id === n.folderId && f.categoryId === n.categoryId && !f.deletedAt,

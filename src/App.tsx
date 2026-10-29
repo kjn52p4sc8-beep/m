@@ -1,3 +1,8 @@
+import CaptureNote from "./components/CaptureNote";
+import type { captureContent } from "./data/sharing";
+import TodoForm from "./components/TodoForm";
+import TodoReminder from "./components/TodoReminder";
+import type { TodoItem } from "./data/model";
 import { emptyTrip } from "./data/finance";
 import Tutorial from "./components/Tutorial";
 import { useEffect, useState, useRef } from "react";
@@ -31,6 +36,9 @@ import {
 import { type Category, type Folder, type Note } from "./data/model";
 import {
   markOpened,
+  addQuickTodo,
+  saveTodoItem,
+  deleteTodoItem,
   initialize,
   snapshot,
   addFolder,
@@ -93,6 +101,51 @@ export default function App() {
   const [typeDialog, setTypeDialog] = useState(false),
     [sharingInfo, setSharingInfo] = useState(false),
     [tutorial, setTutorial] = useState(false);
+  const [deletedUndo, setDeletedUndo] = useState<{
+      id: string;
+      title: string;
+    } | null>(null),
+    [undoBusy, setUndoBusy] = useState(false);
+  useEffect(() => {
+    if (!deletedUndo || undoBusy) return;
+    const t = setTimeout(() => setDeletedUndo(null), 12000);
+    return () => clearTimeout(t);
+  }, [deletedUndo, undoBusy]);
+  async function trashNote(id: string) {
+    try {
+      await removeNote(id);
+      setDeletedUndo({
+        id,
+        title: data.notes.find((n) => n.id === id)?.title || "無題のメモ",
+      });
+      if (editing?.id === id) setEditing(null);
+      await refresh();
+    } catch {
+      setError("メモをごみ箱へ移せませんでした。");
+    }
+  }
+  const [todoDialog, setTodoDialog] = useState(false),
+    [editingTodo, setEditingTodo] = useState<{
+      note: Note;
+      item: TodoItem;
+    } | null>(null);
+  async function createTodo(item: TodoItem) {
+    await addQuickTodo(
+      item,
+      view === "home" ? homeCategory || undefined : undefined,
+    );
+    await refresh();
+    setTodoDialog(false);
+  }
+  const [capture, setCapture] = useState(false);
+  async function saveCapture(content: ReturnType<typeof captureContent>) {
+    const folder = await quickFolder(homeCategory || undefined);
+    const note = { ...newNote(folder), ...content };
+    await saveNote(note);
+    await refresh();
+    setCapture(false);
+    setEditing(note);
+  }
   const createLock = useRef(false);
   useEffect(installViewportTracking, []);
   useScreenScroll(
@@ -246,6 +299,7 @@ export default function App() {
         categories={data.categories}
         folders={data.folders}
         onOpen={openNote}
+        onDelete={(n) => trashNote(n.id)}
         onCreate={() => setNewDialog(true)}
         searching={view === "search"}
         empty={empty}
@@ -362,6 +416,37 @@ export default function App() {
               </button>
             </div>
           )}
+          <TodoReminder
+            paused={loading || !!editing || todoDialog || !!editingTodo}
+            notes={data.notes}
+            onShow={() => go("todo")}
+          />
+          {deletedUndo && (
+            <div
+              className="undo-banner"
+              role="status"
+              onFocus={() => setUndoBusy(true)}
+              onBlur={() => setUndoBusy(false)}
+            >
+              <span>「{deletedUndo.title}」をごみ箱へ移しました</span>
+              <button
+                className="text-button"
+                onClick={async () => {
+                  try {
+                    await restoreNote(deletedUndo.id);
+                    await refresh();
+                    setDeletedUndo(null);
+                  } catch {
+                    setError(
+                      "復元できませんでした。ごみ箱から再試行してください。",
+                    );
+                  }
+                }}
+              >
+                元に戻す
+              </button>
+            </div>
+          )}
           {loading ? (
             <p role="status">メモを読み込んでいます…</p>
           ) : editing ? (
@@ -376,15 +461,7 @@ export default function App() {
                   setError("一覧を更新できませんでした。"),
                 )
               }
-              onDelete={async (id) => {
-                try {
-                  await removeNote(id);
-                  await refresh();
-                  setEditing(null);
-                } catch {
-                  setError("メモを削除できませんでした。");
-                }
-              }}
+              onDelete={trashNote}
             />
           ) : (
             <>
@@ -752,12 +829,11 @@ export default function App() {
               {view === "todo" && (
                 <>
                   <h1>ToDo</h1>
-                  <p className="muted">
-                    すべてのメモのチェック項目をまとめて確認。
-                  </p>
+                  <TodoForm onSave={createTodo} />
                   <TodoPanel
                     notes={data.notes}
                     categories={data.categories}
+                    onEdit={(note, item) => setEditingTodo({ note, item })}
                     onOpen={openNote}
                     onToggle={(n, t, d) => action(() => toggleTodo(n, t, d))}
                   />
@@ -823,6 +899,7 @@ export default function App() {
                   </button>
                   <DataSettings
                     onRestored={async () => {
+                      setDeletedUndo(null);
                       setTheme(readTheme());
                       await refresh();
                     }}
@@ -839,7 +916,7 @@ export default function App() {
                     <p>
                       クラウド同期は未対応です。データはこの端末内に保存されます。
                     </p>
-                    <small>My Memo 0.4.1</small>
+                    <small>My Memo 0.5.0</small>
                   </section>
                 </>
               )}
@@ -848,23 +925,30 @@ export default function App() {
         </main>
       </div>
       {!editing && !loading && (
-        <button
-          className="floating-types"
-          aria-label="作成メニューを開く"
-          onClick={() => setTypeDialog(true)}
-        >
-          種類
-        </button>
-      )}
-      {!editing && !loading && (
-        <button
-          className="floating-create"
-          aria-label="クイックメモを作成"
-          disabled={creating}
-          onClick={() => void quickCreate()}
-        >
-          <Plus size={28} />
-        </button>
+        <div className="quick-actions" aria-label="すぐ作成">
+          <button
+            className="quick-todo text-button"
+            onClick={() => setTodoDialog(true)}
+          >
+            <SquareCheck size={18} />
+            ToDoを追加
+          </button>
+          <button
+            className="floating-types"
+            aria-label="作成メニューを開く"
+            onClick={() => setTypeDialog(true)}
+          >
+            種類
+          </button>
+          <button
+            className="floating-create"
+            aria-label="クイックメモを作成"
+            disabled={creating}
+            onClick={() => void quickCreate()}
+          >
+            <Plus size={28} />
+          </button>
+        </div>
       )}
       {!editing && (
         <nav className="bottom-nav" aria-label="メインメニュー">
@@ -901,6 +985,49 @@ export default function App() {
       <div className="keyboard-bar">
         <KeyboardDismiss />
       </div>
+      {todoDialog && (
+        <Modal label="ToDoを追加" onClose={() => setTodoDialog(false)}>
+          <div className="section-heading">
+            <h2>ToDoを追加</h2>
+            <button
+              className="text-button"
+              onClick={() => setTodoDialog(false)}
+            >
+              閉じる
+            </button>
+          </div>
+          <TodoForm onSave={createTodo} />
+        </Modal>
+      )}
+      {editingTodo && (
+        <Modal label="ToDoを編集" onClose={() => setEditingTodo(null)}>
+          <div className="section-heading">
+            <h2>ToDoを編集</h2>
+            <button
+              className="text-button"
+              onClick={() => setEditingTodo(null)}
+            >
+              閉じる
+            </button>
+          </div>
+          <TodoForm
+            initial={editingTodo.item}
+            onSave={async (item) => {
+              await saveTodoItem(editingTodo.note.id, item);
+              await refresh();
+              setEditingTodo(null);
+            }}
+            onDelete={async () => {
+              await deleteTodoItem(editingTodo.note.id, editingTodo.item.id);
+              await refresh();
+              setEditingTodo(null);
+            }}
+          />
+        </Modal>
+      )}
+      {capture && (
+        <CaptureNote onSave={saveCapture} onClose={() => setCapture(false)} />
+      )}
       {typeDialog && (
         <Modal label="新規作成" onClose={() => setTypeDialog(false)}>
           <div className="section-heading">
@@ -914,6 +1041,22 @@ export default function App() {
             </button>
           </div>
           <div className="create-types">
+            <button
+              onClick={() => {
+                setTypeDialog(false);
+                setCapture(true);
+              }}
+            >
+              URL・テキストを保存
+            </button>
+            <button
+              onClick={() => {
+                setTypeDialog(false);
+                setTodoDialog(true);
+              }}
+            >
+              ToDoを追加
+            </button>
             <button disabled={creating} onClick={() => void quickCreate()}>
               通常メモ
             </button>

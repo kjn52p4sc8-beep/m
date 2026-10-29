@@ -15,6 +15,8 @@ export interface TodoItem {
   id: string;
   text: string;
   done: boolean;
+  dueAt?: string;
+  reminder?: import("./todos").Reminder;
 }
 export interface NoteTable {
   id: string;
@@ -38,6 +40,7 @@ export interface Note {
   folderId: string;
   links: VideoLink[];
   todos?: TodoItem[];
+  purpose?: "quick-todos";
   tables?: NoteTable[];
   deletedAt?: string;
   trip?: import("./finance").Trip;

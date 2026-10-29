@@ -55,19 +55,22 @@ test("travel budget, exchange records, loan repayment and backup survive reload"
     .getByRole("button", { name: "バックアップを保存", exact: true })
     .click();
   const bytes = await readFile((await (await downloadWait).path())!);
-  await page
-    .getByLabel("バックアップを復元", { exact: true })
-    .setInputFiles({
-      name: "finance.json",
-      mimeType: "application/json",
-      buffer: bytes,
-    });
+  await page.getByLabel("バックアップを復元", { exact: true }).setInputFiles({
+    name: "finance.json",
+    mimeType: "application/json",
+    buffer: bytes,
+  });
   await page
     .getByRole("button", { name: "すべて置き換えて復元", exact: true })
     .click();
-  await expect(page.getByRole("status")).toContainText("復元しました");
+  await expect(
+    page.getByRole("status").filter({ hasText: "復元しました" }),
+  ).toContainText("復元しました");
   await page.goto("/");
-  await page.getByRole("button", { name: /秋の旅行/ }).click();
+  await page
+    .getByRole("button", { name: /秋の旅行/ })
+    .and(page.locator(".note-row"))
+    .click();
   await expect(page.locator(".finance-summary")).toContainText("￥65,000");
   await page.getByText("支出履歴（2）", { exact: true }).click();
   await expect(page.getByText(/1 USD = 150円/)).toBeVisible();
@@ -78,7 +81,10 @@ test("travel budget, exchange records, loan repayment and backup survive reload"
     ),
   ).toBe(true);
   await page.getByRole("button", { name: "戻る", exact: true }).click();
-  await page.getByRole("button", { name: /貸し借りの記録/ }).click();
+  await page
+    .getByRole("button", { name: /貸し借りの記録/ })
+    .and(page.locator(".note-row"))
+    .click();
   await expect(page.locator(".loan-status")).toHaveText("完済");
 });
 test("tutorial skips persistently, reopens from settings, and sharing status is honest", async ({

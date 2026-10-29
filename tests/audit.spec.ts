@@ -87,7 +87,10 @@ test("note location, link error recovery, safe opening, removal and search clear
   await expect(page.getByRole("link", { name: /安全なリンク/ })).toHaveCount(0);
   await page.getByRole("button", { name: "戻る", exact: true }).click();
   await page.reload();
-  await page.getByRole("button", { name: /移動メモ/ }).click();
+  await page
+    .getByRole("button", { name: /移動メモ/ })
+    .and(page.locator(".note-row"))
+    .click();
   await expect(page.getByLabel("カテゴリー", { exact: true })).toHaveValue(
     "study",
   );
@@ -99,7 +102,11 @@ test("note location, link error recovery, safe opening, removal and search clear
   await page.getByRole("searchbox", { name: "検索キーワード" }).fill("不一致");
   await expect(page.getByText("一致するメモがありません")).toBeVisible();
   await page.getByRole("button", { name: "検索をクリア" }).click();
-  await expect(page.getByRole("button", { name: /移動メモ/ })).toBeVisible();
+  await expect(
+    page
+      .getByRole("button", { name: /移動メモ/ })
+      .and(page.locator(".note-row")),
+  ).toBeVisible();
 });
 test("settings buttons report actual storage support and invalid backup errors", async ({
   page,
@@ -216,7 +223,10 @@ test("annotation controls, secondary touches and save-error retry", async ({
   await page.getByRole("button", { name: "画像を閉じる" }).click();
   await page.getByRole("button", { name: "戻る", exact: true }).click();
   await page.reload();
-  await page.getByRole("button", { name: /無題のメモ/ }).click();
+  await page
+    .getByRole("button", { name: /無題のメモ/ })
+    .and(page.locator(".note-row"))
+    .click();
   await page.getByRole("button", { name: "controls.pngを拡大" }).click();
   await expect(
     page.getByRole("img", { name: "注釈キャンバス" }).locator("text"),

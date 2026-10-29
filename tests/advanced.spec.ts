@@ -48,9 +48,14 @@ test("literal replacement, undo, editable tables and backup roundtrip", async ({
   await page
     .getByRole("button", { name: "すべて置き換えて復元", exact: true })
     .click();
-  await expect(page.getByRole("status")).toContainText("復元しました");
+  await expect(
+    page.getByRole("status").filter({ hasText: "復元しました" }),
+  ).toContainText("復元しました");
   await page.goto("/");
-  await page.getByRole("button", { name: /旅の計画/ }).click();
+  await page
+    .getByRole("button", { name: /旅の計画/ })
+    .and(page.locator(".note-row"))
+    .click();
   await expect(page.getByLabel("表1 行2 列3", { exact: true })).toHaveValue(
     "交通費",
   );
@@ -121,9 +126,14 @@ test("records real encoded audio from a synthetic microphone, restores and plays
   await page
     .getByRole("button", { name: "すべて置き換えて復元", exact: true })
     .click();
-  await expect(page.getByRole("status")).toContainText("復元しました");
+  await expect(
+    page.getByRole("status").filter({ hasText: "復元しました" }),
+  ).toContainText("復元しました");
   await page.goto("/");
-  await page.getByRole("button", { name: /録音メモ/ }).click();
+  await page
+    .getByRole("button", { name: /録音メモ/ })
+    .and(page.locator(".note-row"))
+    .click();
   await page
     .locator("audio")
     .evaluate((audio: HTMLAudioElement) => audio.play());

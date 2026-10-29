@@ -87,8 +87,15 @@ test("safe areas, readable inputs, sticky editing actions and long-form scrollin
     ),
   ).toBe(true);
   await back.click();
-  await expect(page.getByRole("button", { name: /無題のメモ/ })).toBeVisible();
-  await page.getByRole("button", { name: /無題のメモ/ }).click();
+  await expect(
+    page
+      .getByRole("button", { name: /無題のメモ/ })
+      .and(page.locator(".note-row")),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: /無題のメモ/ })
+    .and(page.locator(".note-row"))
+    .click();
   await expect(
     page.getByRole("textbox", { name: "本文", exact: true }),
   ).toHaveValue("長い本文\n".repeat(80));
@@ -155,7 +162,9 @@ test("returning from a memo restores the home list scroll position", async ({
     .getByRole("textbox", { name: "タイトル", exact: true })
     .fill("スクロール復元");
   await page.getByRole("button", { name: "戻る", exact: true }).click();
-  const note = page.getByRole("button", { name: /スクロール復元/ });
+  const note = page
+    .getByRole("button", { name: /スクロール復元/ })
+    .and(page.locator(".note-row"));
   // The compact home no longer needs scrolling for one note. Fill a real list.
   for (let i = 0; i < 8; i++) {
     await page

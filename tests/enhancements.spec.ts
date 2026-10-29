@@ -16,15 +16,21 @@ test("category tabs filter the home list and quick creation uses the selected ca
     .fill("仕事のクイックメモ");
   await page.getByRole("button", { name: "戻る", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: /仕事のクイックメモ/ }),
+    page
+      .getByRole("button", { name: /仕事のクイックメモ/ })
+      .and(page.locator(".note-row")),
   ).toBeVisible();
   await page.getByRole("button", { name: "お金 未来のために" }).click();
   await expect(
-    page.getByRole("button", { name: /仕事のクイックメモ/ }),
+    page
+      .getByRole("button", { name: /仕事のクイックメモ/ })
+      .and(page.locator(".note-row")),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "すべて", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: /仕事のクイックメモ/ }),
+    page
+      .getByRole("button", { name: /仕事のクイックメモ/ })
+      .and(page.locator(".note-row")),
   ).toBeVisible();
   await page.setViewportSize({ width: 320, height: 700 });
   expect(
@@ -84,7 +90,10 @@ test("quick creation, checklist dashboard, search highlight and trash restore pr
     .getByText("カテゴリー・フォルダ・タグで絞り込む", { exact: true })
     .click();
   await page.getByLabel("タグで絞り込み").selectOption("週末");
-  await page.getByRole("button", { name: /旅の準備/ }).click();
+  await page
+    .getByRole("button", { name: /旅の準備/ })
+    .and(page.locator(".note-row"))
+    .click();
   await expect(
     page.getByRole("textbox", { name: "本文", exact: true }),
   ).toHaveValue("小さな旅へ。カメラを持っていく。");
@@ -122,13 +131,11 @@ test("backup restores theme, tasks and trash; old v1 imports keep existing theme
   expect(data.notes[0].deletedAt).toBeTruthy();
   expect(data.notes[0].todos[0].text).toBe("残す項目");
   await page.getByRole("button", { name: "ライト", exact: true }).click();
-  await page
-    .getByLabel("バックアップを復元", { exact: true })
-    .setInputFiles({
-      name: "backup.json",
-      mimeType: "application/json",
-      buffer: bytes,
-    });
+  await page.getByLabel("バックアップを復元", { exact: true }).setInputFiles({
+    name: "backup.json",
+    mimeType: "application/json",
+    buffer: bytes,
+  });
   await page
     .getByRole("button", { name: "すべて置き換えて復元", exact: true })
     .click();
@@ -139,20 +146,22 @@ test("backup restores theme, tasks and trash; old v1 imports keep existing theme
     delete n.todos;
     delete n.deletedAt;
   });
-  await page
-    .getByLabel("バックアップを復元", { exact: true })
-    .setInputFiles({
-      name: "old.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(data)),
-    });
+  await page.getByLabel("バックアップを復元", { exact: true }).setInputFiles({
+    name: "old.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(data)),
+  });
   await page
     .getByRole("button", { name: "すべて置き換えて復元", exact: true })
     .click();
-  await expect(page.getByRole("status")).toContainText("復元しました");
+  await expect(
+    page.getByRole("status").filter({ hasText: "復元しました" }),
+  ).toContainText("復元しました");
   await expect(page.locator("html")).toHaveClass("dark");
   await page.goto("/");
   await expect(
-    page.getByRole("button", { name: /復元するメモ/ }),
+    page
+      .getByRole("button", { name: /復元するメモ/ })
+      .and(page.locator(".note-row")),
   ).toBeVisible();
 });

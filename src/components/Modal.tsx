@@ -31,7 +31,11 @@ export default function Modal({
       ).filter(
         (el) => !el.matches(":disabled") && el.getClientRects().length > 0,
       );
-    (focusable()[0] || element).focus({ preventScroll: true });
+    (
+      element.querySelector<HTMLElement>("[data-initial-focus]") ||
+      focusable()[0] ||
+      element
+    ).focus({ preventScroll: true });
     function handle(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.preventDefault();

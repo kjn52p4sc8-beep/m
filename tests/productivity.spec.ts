@@ -48,6 +48,7 @@ test("counts graphemes, colors selection and typed text, saves limits and favori
   await page
     .getByRole("region", { name: "お気に入りのメモ" })
     .getByRole("button", { name: /色付きレポート/ })
+    .and(page.locator(".note-row"))
     .click();
   await expect(page.getByRole("button", { name: "7 / 6文字" })).toHaveClass(
     /over/,

@@ -1,3 +1,4 @@
+import { validateTodos } from "./todos";
 import { validateTrip, validateLoans } from "./finance";
 import { validateProductivity } from "./productivity";
 import type {
@@ -21,7 +22,7 @@ import { validateTables } from "./tables";
 export const MAX_BACKUP_BYTES = 100 * 1024 * 1024;
 type Backup = {
   format: "my-memo";
-  version: 4;
+  version: 5;
   preferences?: { theme: "light" | "dark" | "system" };
   exportedAt: string;
   categories: Category[];
@@ -95,7 +96,7 @@ export function parseBackup(input: unknown): Backup {
   const root = obj(input);
   if (
     root.format !== "my-memo" ||
-    ![1, 2, 3, 4].includes(root.version as number)
+    ![1, 2, 3, 4, 5].includes(root.version as number)
   )
     bad();
   const categories = arr(root.categories, 100).map((v) => {
@@ -131,11 +132,12 @@ export function parseBackup(input: unknown): Backup {
       trip: validateTrip(n.trip),
       loans: validateLoans(n.loans),
       ...(n.deletedAt === undefined ? {} : { deletedAt: date(n.deletedAt) }),
-      todos: arr(n.todos === undefined ? [] : n.todos, 10000).map((v) => {
-        const t = obj(v);
-        if (typeof t.done !== "boolean") bad();
-        return { id: id(t.id), text: str(t.text), done: t.done as boolean };
-      }),
+      todos: validateTodos(n.todos),
+      ...(n.purpose === undefined
+        ? {}
+        : n.purpose === "quick-todos"
+          ? { purpose: "quick-todos" as const }
+          : bad()),
       tags: tags(n.tags),
       createdAt: date(n.createdAt),
       updatedAt: date(n.updatedAt),
@@ -218,7 +220,7 @@ export function parseBackup(input: unknown): Backup {
   }
   return {
     format: "my-memo",
-    version: 4,
+    version: 5,
     preferences,
     exportedAt: date(root.exportedAt),
     categories,
@@ -238,7 +240,7 @@ export async function exportBackup() {
     recordings.push({ ...r, dataUrl: await blobToDataUrl(blob) });
   const text = JSON.stringify({
     format: "my-memo",
-    version: 4,
+    version: 5,
     preferences: { theme: readTheme() },
     exportedAt: new Date().toISOString(),
     ...data,

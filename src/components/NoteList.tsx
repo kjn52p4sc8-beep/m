@@ -1,3 +1,5 @@
+import { useState } from "react";
+import SwipeNote from "./SwipeNote";
 import { FileText, ChevronRight, NotebookPen, Plus } from "lucide-react";
 import type { Note, Category, Folder } from "../data/model";
 import Highlight from "./Highlight";
@@ -9,6 +11,7 @@ export default function NoteList({
   categories,
   folders,
   onOpen,
+  onDelete,
   onCreate,
   searching,
   empty,
@@ -18,71 +21,81 @@ export default function NoteList({
   categories: Category[];
   folders: Folder[];
   onOpen: (note: Note) => void;
+  onDelete: (note: Note) => Promise<void>;
   onCreate: () => void;
   searching: boolean;
   empty: string;
 }) {
+  const [openId, setOpenId] = useState<string | null>(null);
   return notes.length ? (
     <div className="notes-list">
       {notes.map((n) => {
         const c = categories.find((c) => c.id === n.categoryId);
         return (
-          <button className="note-row" key={n.id} onClick={() => onOpen(n)}>
-            <NoteThumbnail noteId={n.id} updatedAt={n.updatedAt} />
-            <span className="note-summary">
-              <strong>
-                <Highlight text={n.title || "無題のメモ"} query={query} />
-              </strong>
-              <span>
-                <Highlight
-                  text={
-                    excerpt(
-                      query
-                        ? [
-                            n.body,
-                            ...(n.todos || []).map((t) => t.text),
-                            ...(n.tables || []).flatMap((t) => [
-                              t.title,
-                              ...t.rows.flat(),
-                            ]),
-                            ...n.links.flatMap((l) => [
-                              l.title,
-                              l.url,
-                              ...l.tags,
-                            ]),
-                          ].join(" ")
-                        : n.body,
-                      query,
-                    ) || "自由にメモを書き始めましょう"
-                  }
-                  query={query}
-                />
+          <SwipeNote
+            key={n.id}
+            title={n.title || "無題のメモ"}
+            open={openId === n.id}
+            onReveal={(v) => setOpenId(v ? n.id : null)}
+            onDelete={() => onDelete(n)}
+          >
+            <button className="note-row" onClick={() => onOpen(n)}>
+              <NoteThumbnail noteId={n.id} updatedAt={n.updatedAt} />
+              <span className="note-summary">
+                <strong>
+                  <Highlight text={n.title || "無題のメモ"} query={query} />
+                </strong>
+                <span>
+                  <Highlight
+                    text={
+                      excerpt(
+                        query
+                          ? [
+                              n.body,
+                              ...(n.todos || []).map((t) => t.text),
+                              ...(n.tables || []).flatMap((t) => [
+                                t.title,
+                                ...t.rows.flat(),
+                              ]),
+                              ...n.links.flatMap((l) => [
+                                l.title,
+                                l.url,
+                                ...l.tags,
+                              ]),
+                            ].join(" ")
+                          : n.body,
+                        query,
+                      ) || "自由にメモを書き始めましょう"
+                    }
+                    query={query}
+                  />
+                </span>
+                <small>
+                  {n.favorite && <span aria-label="お気に入り">★</span>}
+                  {n.trip && <span className="tag-pill">旅行予算</span>}
+                  {n.loans && <span className="tag-pill">貸し借り</span>}
+                  <b className={`category-badge ${c?.color}`}>{c?.name}</b>{" "}
+                  <span className="note-folder">
+                    {folders.find((f) => f.id === n.folderId)?.name}
+                  </span>{" "}
+                  {n.tags.map((t) => (
+                    <span className="tag-pill" key={t}>
+                      #<Highlight text={t} query={query} />
+                    </span>
+                  ))}
+                </small>
+                <time className="note-updated" dateTime={n.updatedAt}>
+                  {new Date(n.updatedAt).toLocaleString("ja-JP", {
+                    month: "numeric",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </time>
               </span>
-              <small>
-                {n.favorite && <span aria-label="お気に入り">★</span>}
-                {n.trip && <span className="tag-pill">旅行予算</span>}
-                {n.loans && <span className="tag-pill">貸し借り</span>}
-                <b className={`category-badge ${c?.color}`}>{c?.name}</b>{" "}
-                <span className="note-folder">
-                  {folders.find((f) => f.id === n.folderId)?.name}
-                </span>{" "}
-                {n.tags.map((t) => (
-                  <span className="tag-pill" key={t}>
-                    #<Highlight text={t} query={query} />
-                  </span>
-                ))}
-              </small>
-              <time className="note-updated" dateTime={n.updatedAt}>
-                {new Date(n.updatedAt).toLocaleString("ja-JP", {
-                  month: "numeric",
-                  day: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </time>
-            </span>
-            <ChevronRight className="note-chevron" size={16} />
-          </button>
+              <ChevronRight className="note-chevron" size={16} />
+            </button>
+          </SwipeNote>
         );
       })}
     </div>
