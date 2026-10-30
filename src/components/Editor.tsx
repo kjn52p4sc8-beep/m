@@ -1,8 +1,12 @@
+import { flushSync } from "react-dom";
+import NoteColorPalette from "./NoteColorPalette";
 import ShareNote from "./ShareNote";
 import { serviceName } from "../data/sharing";
 import { useEffect, useRef, useState } from "react";
 import {
   Share2,
+  Palette,
+  SquareCheck,
   ArrowLeft,
   Trash2,
   Check,
@@ -30,6 +34,7 @@ import Images from "./Images";
 import { safeUrl, parseTags } from "../data/search";
 export default function Editor({
   initial,
+  isNew = false,
   categories,
   folders,
   onClose,
@@ -37,6 +42,7 @@ export default function Editor({
   onDelete,
 }: {
   initial: Note;
+  isNew?: boolean;
   categories: Category[];
   folders: Folder[];
   onClose: () => void;
@@ -46,7 +52,7 @@ export default function Editor({
   const [recovered] = useState(() => recoverDraft(initial, folders)),
     [draftWarning, setDraftWarning] = useState(""),
     [note, setNote] = useState(recovered || initial),
-    [status, setStatus] = useState("保存済み"),
+    [status, setStatus] = useState(isNew ? "未保存" : "保存済み"),
     [error, setError] = useState(""),
     [linkError, setLinkError] = useState(""),
     [linkForm, setLinkForm] = useState(false),
@@ -56,6 +62,7 @@ export default function Editor({
     [linkTitle, setLinkTitle] = useState(""),
     [linkTags, setLinkTags] = useState("");
   const [sharing, setSharing] = useState(false);
+  const [palette, setPalette] = useState(false);
   const [selection, setSelection] = useState<[number, number]>([0, 0]);
   const [pen, setPen] = useState<PenColor>(() => {
     try {
@@ -72,7 +79,7 @@ export default function Editor({
     titleInput = useRef<HTMLInputElement>(null),
     bodyInput = useRef<HTMLTextAreaElement>(null),
     current = useRef(note),
-    dirty = useRef(!!recovered),
+    dirty = useRef(!!recovered || isNew),
     pending = useRef(0),
     queue = useRef(Promise.resolve()),
     timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined),
@@ -167,7 +174,16 @@ export default function Editor({
     return () => input?.removeEventListener("beforeinput", capture);
   }, []);
   useEffect(() => {
-    if (recovered) void persist();
+    if (isNew) {
+      try {
+        writeDraft(current.current, base.current);
+      } catch {
+        setDraftWarning(
+          "下書きを一時保存できません。保存状態を確認してください。",
+        );
+      }
+    }
+    if (recovered || isNew) void persist();
     const hide = () => {
       if (document.visibilityState === "hidden") void persist();
     };
@@ -216,7 +232,14 @@ export default function Editor({
     }
   }
   return (
-    <div className="editor">
+    <div className={`editor memo-color-${note.backgroundColor || "white"}`}>
+      {palette && (
+        <NoteColorPalette
+          color={note.backgroundColor || "white"}
+          onChange={(backgroundColor) => change({ backgroundColor })}
+          onClose={() => setPalette(false)}
+        />
+      )}
       {sharing && <ShareNote note={note} onClose={() => setSharing(false)} />}
       <div className="editor-toolbar">
         <button
@@ -234,15 +257,6 @@ export default function Editor({
           onClick={() => change({ favorite: !note.favorite })}
         >
           {note.favorite ? "★" : "☆"}
-        </button>
-        <button
-          type="button"
-          className="icon-button"
-          aria-label="メモの文章を共有"
-          disabled={busy || audioBusy || imageBusy}
-          onClick={() => setSharing(true)}
-        >
-          <Share2 size={18} />
         </button>
         <span className="save-status" role="status">
           <Check size={15} />
@@ -291,45 +305,6 @@ export default function Editor({
         </p>
       )}
       <fieldset disabled={busy} className="editor-paper">
-        <div className="location-fields">
-          <label>
-            カテゴリー
-            <select
-              aria-label="カテゴリー"
-              value={note.categoryId}
-              onChange={(e) => {
-                const f = folders.find((f) => f.categoryId === e.target.value);
-                if (f) change({ categoryId: f.categoryId, folderId: f.id });
-              }}
-            >
-              {categories.map((c) => (
-                <option
-                  key={c.id}
-                  value={c.id}
-                  disabled={!folders.some((f) => f.categoryId === c.id)}
-                >
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            フォルダ
-            <select
-              aria-label="フォルダ"
-              value={note.folderId}
-              onChange={(e) => change({ folderId: e.target.value })}
-            >
-              {folders
-                .filter((f) => f.categoryId === note.categoryId)
-                .map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.name}
-                  </option>
-                ))}
-            </select>
-          </label>
-        </div>
         <input
           className="note-title-input"
           ref={titleInput}
@@ -358,8 +333,9 @@ export default function Editor({
           <textarea
             className="note-body-input"
             ref={bodyInput}
+            autoFocus={isNew && !initial.trip && !initial.loans}
             aria-label="本文"
-            placeholder="思いついたことを、自由に書いてみましょう。"
+            placeholder="メモを書く"
             value={note.body}
             onBeforeInput={(e) => {
               beforeSelection.current = [
@@ -429,137 +405,230 @@ export default function Editor({
           bodyRef={bodyInput}
           onChange={change}
         />
-        <label className="field">
-          タグ{" "}
-          <input
-            aria-label="タグ"
-            placeholder="読書, アイデア（カンマ区切り）"
-            defaultValue={note.tags.join(", ")}
-            onChange={(e) => change({ tags: parseTags(e.target.value) })}
+        <div className="editor-checklist" hidden={!(note.todos || []).length}>
+          <Checklist
+            items={note.todos || []}
+            onChange={(todos) => change({ todos })}
           />
-        </label>
-        <Checklist
-          items={note.todos || []}
-          onChange={(todos) => change({ todos })}
-        />
-        <TableEditor
-          tables={note.tables || []}
-          onChange={(tables) => change({ tables })}
-        />
-        <Images
-          noteId={note.id}
-          onBusy={setImageBusy}
-          onChanged={(updatedAt) => {
-            if (updatedAt && updatedAt > current.current.updatedAt) {
-              current.current = { ...current.current, updatedAt };
-              setNote(current.current);
-            }
-            onSaved();
-          }}
-        />
-        <Recordings
-          noteId={note.id}
-          onBusy={setAudioBusy}
-          onChanged={(updatedAt) => {
-            if (updatedAt && updatedAt > current.current.updatedAt) {
-              current.current = { ...current.current, updatedAt };
-              setNote(current.current);
-            }
-            onSaved();
-          }}
-        />
-        <section className="links-section">
-          <div className="section-heading">
-            <h3>
-              <LinkIcon size={18} />
-              動画・Webリンク
-            </h3>
-            <button
-              className="text-button"
-              onClick={() => setLinkForm(!linkForm)}
-            >
-              <Plus size={17} />
-              追加
-            </button>
+        </div>
+        <details className="editor-organization">
+          <summary>分類・タグ</summary>{" "}
+          <div className="location-fields">
+            <label>
+              カテゴリー
+              <select
+                aria-label="カテゴリー"
+                value={note.categoryId}
+                onChange={(e) => {
+                  const f = folders.find(
+                    (f) => f.categoryId === e.target.value,
+                  );
+                  if (f) change({ categoryId: f.categoryId, folderId: f.id });
+                }}
+              >
+                {categories.map((c) => (
+                  <option
+                    key={c.id}
+                    value={c.id}
+                    disabled={!folders.some((f) => f.categoryId === c.id)}
+                  >
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              フォルダ
+              <select
+                aria-label="フォルダ"
+                value={note.folderId}
+                onChange={(e) => change({ folderId: e.target.value })}
+              >
+                {folders
+                  .filter((f) => f.categoryId === note.categoryId)
+                  .map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
           </div>
-          {note.links.map((link) => (
-            <div className="link-card" key={link.id}>
-              <a
-                href={safeUrl(link.url)}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <span>
-                  {link.title}
-                  <small>
-                    {serviceName(link.url)}{" "}
-                    {link.tags.map((t) => "#" + t).join(" ")}
-                  </small>
-                </span>
-                <ExternalLink size={17} />
-              </a>
+          <label className="field">
+            タグ{" "}
+            <input
+              aria-label="タグ"
+              placeholder="読書, アイデア（カンマ区切り）"
+              defaultValue={note.tags.join(", ")}
+              onChange={(e) => change({ tags: parseTags(e.target.value) })}
+            />
+          </label>
+        </details>
+        <details className="editor-extras">
+          <summary>画像・音声・表・リンク</summary>
+          <TableEditor
+            tables={note.tables || []}
+            onChange={(tables) => change({ tables })}
+          />
+          <Images
+            noteId={note.id}
+            onBusy={setImageBusy}
+            onChanged={(updatedAt) => {
+              if (updatedAt && updatedAt > current.current.updatedAt) {
+                current.current = { ...current.current, updatedAt };
+                setNote(current.current);
+              }
+              onSaved();
+            }}
+          />
+          <Recordings
+            noteId={note.id}
+            onBusy={setAudioBusy}
+            onChanged={(updatedAt) => {
+              if (updatedAt && updatedAt > current.current.updatedAt) {
+                current.current = { ...current.current, updatedAt };
+                setNote(current.current);
+              }
+              onSaved();
+            }}
+          />
+          <section className="links-section">
+            <div className="section-heading">
+              <h3>
+                <LinkIcon size={18} />
+                動画・Webリンク
+              </h3>
               <button
-                className="icon-button"
-                aria-label={`${link.title}を削除`}
-                onClick={() =>
-                  change({ links: note.links.filter((l) => l.id !== link.id) })
-                }
+                className="text-button"
+                onClick={() => setLinkForm(!linkForm)}
               >
-                <X size={17} />
+                <Plus size={17} />
+                追加
               </button>
             </div>
-          ))}
-          {!note.links.length && !linkForm && (
-            <p className="muted">見返したい動画やサイトを、メモと一緒に。</p>
-          )}
-          {linkForm && (
-            <form onSubmit={addLink} className="link-form">
-              {linkError && (
-                <p role="alert" className="error">
-                  {linkError}
-                </p>
-              )}
-              <label className="field">
-                URL
-                <input
-                  required
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  inputMode="url"
-                  enterKeyHint="next"
-                  type="url"
-                  value={url}
-                  onChange={(e) => {
-                    setUrl(e.target.value);
-                    setLinkError("");
-                  }}
-                  placeholder="https://…"
-                />
-              </label>
-              <label className="field">
-                リンクのタイトル
-                <input
-                  value={linkTitle}
-                  onChange={(e) => setLinkTitle(e.target.value)}
-                />
-              </label>
-              <label className="field">
-                リンクのタグ
-                <input
-                  value={linkTags}
-                  onChange={(e) => setLinkTags(e.target.value)}
-                  placeholder="カンマ区切り"
-                />
-              </label>
-              <button className="primary">リンクを保存</button>
-            </form>
-          )}
-          <p className="fine-print">
-            リンクは元サイトで開きます。動画やサムネイルは自動取得しません。
-          </p>
-        </section>
+            {note.links.map((link) => (
+              <div className="link-card" key={link.id}>
+                <a
+                  href={safeUrl(link.url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <span>
+                    {link.title}
+                    <small>
+                      {serviceName(link.url)}{" "}
+                      {link.tags.map((t) => "#" + t).join(" ")}
+                    </small>
+                  </span>
+                  <ExternalLink size={17} />
+                </a>
+                <button
+                  className="icon-button"
+                  aria-label={`${link.title}を削除`}
+                  onClick={() =>
+                    change({
+                      links: note.links.filter((l) => l.id !== link.id),
+                    })
+                  }
+                >
+                  <X size={17} />
+                </button>
+              </div>
+            ))}
+            {!note.links.length && !linkForm && (
+              <p className="muted">見返したい動画やサイトを、メモと一緒に。</p>
+            )}
+            {linkForm && (
+              <form onSubmit={addLink} className="link-form">
+                {linkError && (
+                  <p role="alert" className="error">
+                    {linkError}
+                  </p>
+                )}
+                <label className="field">
+                  URL
+                  <input
+                    required
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    inputMode="url"
+                    enterKeyHint="next"
+                    type="url"
+                    value={url}
+                    onChange={(e) => {
+                      setUrl(e.target.value);
+                      setLinkError("");
+                    }}
+                    placeholder="https://…"
+                  />
+                </label>
+                <label className="field">
+                  リンクのタイトル
+                  <input
+                    value={linkTitle}
+                    onChange={(e) => setLinkTitle(e.target.value)}
+                  />
+                </label>
+                <label className="field">
+                  リンクのタグ
+                  <input
+                    value={linkTags}
+                    onChange={(e) => setLinkTags(e.target.value)}
+                    placeholder="カンマ区切り"
+                  />
+                </label>
+                <button className="primary">リンクを保存</button>
+              </form>
+            )}
+            <p className="fine-print">
+              リンクは元サイトで開きます。動画やサムネイルは自動取得しません。
+            </p>
+          </section>
+        </details>
       </fieldset>
+      <div className="editor-dock" aria-label="メモの操作">
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="メモの背景色を変更"
+          onClick={() => setPalette(true)}
+        >
+          <Palette size={21} />
+        </button>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="チェック項目を追加"
+          onClick={() => {
+            flushSync(() =>
+              change({
+                todos: [
+                  ...(current.current.todos || []),
+                  { id: crypto.randomUUID(), text: "", done: false },
+                ],
+              }),
+            );
+            const fields = document.querySelectorAll<HTMLInputElement>(
+              '.editor-checklist input[aria-label="チェック項目"]',
+            );
+            const field = fields[fields.length - 1];
+            field?.focus();
+            field?.scrollIntoView({ block: "center" });
+          }}
+        >
+          <SquareCheck size={21} />
+        </button>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="メモの文章を共有"
+          disabled={busy || audioBusy || imageBusy}
+          onClick={() => setSharing(true)}
+        >
+          <Share2 size={18} />
+        </button>
+      </div>
     </div>
   );
 }

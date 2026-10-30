@@ -1,3 +1,4 @@
+import { validateNoteColor } from "./noteColors";
 import type { Note } from "./model";
 import { characterCount } from "./text";
 export const penColors = [
@@ -124,14 +125,27 @@ export function colorParts(text: string, ranges: ColorRange[]) {
 export function validateProductivity(
   value: Record<string, unknown>,
   body: string,
-): Pick<Note, "bodyColors" | "characterLimit" | "favorite" | "lastOpenedAt"> {
+): Pick<
+  Note,
+  | "bodyColors"
+  | "characterLimit"
+  | "favorite"
+  | "lastOpenedAt"
+  | "backgroundColor"
+> {
   const fail = () => {
     throw Error("文字色・文字数設定の形式が正しくありません。");
   };
   const out: Pick<
     Note,
-    "bodyColors" | "characterLimit" | "favorite" | "lastOpenedAt"
+    | "bodyColors"
+    | "characterLimit"
+    | "favorite"
+    | "lastOpenedAt"
+    | "backgroundColor"
   > = {};
+  if (value.backgroundColor !== undefined)
+    out.backgroundColor = validateNoteColor(value.backgroundColor);
   if (value.characterLimit !== undefined) {
     if (
       !Number.isSafeInteger(value.characterLimit) ||

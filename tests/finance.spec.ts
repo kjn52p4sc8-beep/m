@@ -1,11 +1,13 @@
+import { openEditorSections, openFolders, openCreateMenu } from "./ui-helpers";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 test("travel budget, exchange records, loan repayment and backup survive reload", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "作成メニューを開く" }).click();
+  await openCreateMenu(page);
   await page.getByRole("button", { name: "旅行予算", exact: true }).click();
+  await openEditorSections(page);
   await page.getByLabel("タイトル", { exact: true }).fill("秋の旅行");
   await page.getByLabel("旅行先", { exact: true }).fill("ニューヨーク");
   await page.getByLabel("総予算", { exact: true }).fill("100000");
@@ -23,10 +25,11 @@ test("travel budget, exchange records, loan repayment and backup survive reload"
   await expect(page.locator(".finance-summary")).toContainText("￥35,000");
   await expect(page.locator(".finance-summary")).toContainText("￥65,000");
   await page.getByRole("button", { name: "戻る", exact: true }).click();
-  await page.getByRole("button", { name: "作成メニューを開く" }).click();
+  await openCreateMenu(page);
   await page
     .getByRole("button", { name: "お金の貸し借り", exact: true })
     .click();
+  await openEditorSections(page);
   await page.getByLabel("相手の名前", { exact: true }).fill("友人A");
   await page.getByLabel("金額（円）", { exact: true }).fill("10000");
   await page.getByLabel("返済予定日", { exact: true }).fill("2026-12-01");
@@ -71,6 +74,7 @@ test("travel budget, exchange records, loan repayment and backup survive reload"
     .getByRole("button", { name: /秋の旅行/ })
     .and(page.locator(".note-row"))
     .click();
+  await openEditorSections(page);
   await expect(page.locator(".finance-summary")).toContainText("￥65,000");
   await page.getByText("支出履歴（2）", { exact: true }).click();
   await expect(page.getByText(/1 USD = 150円/)).toBeVisible();
@@ -85,17 +89,13 @@ test("travel budget, exchange records, loan repayment and backup survive reload"
     .getByRole("button", { name: /貸し借りの記録/ })
     .and(page.locator(".note-row"))
     .click();
+  await openEditorSections(page);
   await expect(page.locator(".loan-status")).toHaveText("完済");
 });
-test("tutorial skips persistently, reopens from settings, and sharing status is honest", async ({
+test("tutorial stays out of home, opens from settings and sharing status is honest", async ({
   page,
 }) => {
   await page.goto("/");
-  await expect(
-    page.getByRole("region", { name: "はじめての使い方" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "スキップ", exact: true }).click();
-  await page.reload();
   await expect(
     page.getByRole("region", { name: "はじめての使い方" }),
   ).toHaveCount(0);

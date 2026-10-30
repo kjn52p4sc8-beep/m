@@ -1,14 +1,12 @@
+import { openEditorSections, openFolders, openCreateMenu } from "./ui-helpers";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 test("image compression, preview, JSON backup and atomic restore", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "最初のメモを作成" }).click();
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "日記", exact: true })
-    .click();
+  await page.getByRole("button", { name: "クイックメモを作成" }).click();
+  await openEditorSections(page);
   await page
     .getByRole("textbox", { name: "タイトル", exact: true })
     .fill("画像付き日記");
@@ -59,6 +57,7 @@ test("image compression, preview, JSON backup and atomic restore", async ({
     .getByRole("button", { name: /画像付き日記/ })
     .and(page.locator(".note-row"))
     .click();
+  await openEditorSections(page);
   page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "メモを削除", exact: true }).click();
   await page.getByRole("button", { name: "設定を開く" }).click();
@@ -83,6 +82,7 @@ test("image compression, preview, JSON backup and atomic restore", async ({
     .getByRole("button", { name: /画像付き日記/ })
     .and(page.locator(".note-row"))
     .click();
+  await openEditorSections(page);
   await expect(
     page.getByRole("button", { name: "photo.pngを拡大" }),
   ).toBeVisible();
@@ -97,11 +97,8 @@ test("text and handwriting annotations remain editable after reload and backup",
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "最初のメモを作成" }).click();
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "日記", exact: true })
-    .click();
+  await page.getByRole("button", { name: "クイックメモを作成" }).click();
+  await openEditorSections(page);
   await page
     .getByRole("textbox", { name: "タイトル", exact: true })
     .fill("注釈テスト");
@@ -149,6 +146,7 @@ test("text and handwriting annotations remain editable after reload and backup",
     .getByRole("button", { name: /注釈テスト/ })
     .and(page.locator(".note-row"))
     .click();
+  await openEditorSections(page);
   await page.getByRole("button", { name: "memo.pngを拡大" }).click();
   await page.getByRole("button", { name: "重要ポイント", exact: true }).click();
   await page.getByRole("textbox", { name: "注釈の文字" }).fill("編集後の文字");
@@ -186,6 +184,7 @@ test("text and handwriting annotations remain editable after reload and backup",
     .getByRole("button", { name: /注釈テスト/ })
     .and(page.locator(".note-row"))
     .click();
+  await openEditorSections(page);
   await page.getByRole("button", { name: "memo.pngを拡大" }).click();
   await expect(
     page.getByRole("button", { name: "編集後の文字", exact: true }),

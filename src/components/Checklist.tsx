@@ -76,7 +76,7 @@ export default function Checklist({
           }
         >
           <Plus size={17} />
-          チェック項目を追加
+          項目を追加
         </button>
       </div>
       {editing && (

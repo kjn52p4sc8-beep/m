@@ -48,6 +48,7 @@ export interface Note {
   bodyColors?: import("./productivity").ColorRange[];
   characterLimit?: number;
   favorite?: boolean;
+  backgroundColor?: import("./noteColors").NoteColor;
   lastOpenedAt?: string;
 }
 export const categories: Category[] = [

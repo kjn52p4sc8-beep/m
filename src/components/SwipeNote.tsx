@@ -1,15 +1,21 @@
 import { useRef, useState, type ReactNode } from "react";
-import { MoreHorizontal, Trash2 } from "lucide-react";
+import { MoreHorizontal, Trash2, Pin, PinOff } from "lucide-react";
 export default function SwipeNote({
   title,
   open,
   onReveal,
   onDelete,
   children,
+  color,
+  pinned,
+  onPin,
 }: {
   title: string;
-  open: boolean;
-  onReveal: (v: boolean) => void;
+  open: "delete" | "pin" | null;
+  onReveal: (v: "delete" | "pin" | null) => void;
+  color: string;
+  pinned: boolean;
+  onPin: () => Promise<void>;
   onDelete: () => Promise<void>;
   children: ReactNode;
 }) {
@@ -22,33 +28,53 @@ export default function SwipeNote({
       axis: "pending" | "x" | "y";
     } | null>(null),
     suppress = useRef(false);
-  const offset = drag ?? (open ? -88 : 0);
+  const resting = open === "delete" ? -88 : open === "pin" ? 88 : 0;
+  const offset = drag ?? resting;
   async function remove() {
     if (!confirm(`「${title}」をごみ箱へ移しますか？ 後から復元できます。`))
       return;
     setBusy(true);
     try {
       await onDelete();
-      onReveal(false);
+      onReveal(null);
     } finally {
       setBusy(false);
     }
   }
   return (
     <div
-      className={`swipe-note ${open ? "revealed" : ""}`}
+      className={`swipe-note memo-color-${color} ${open ? "revealed" : ""}`}
       data-note-title={title}
     >
       <button
         type="button"
         className="swipe-delete"
-        tabIndex={open ? 0 : -1}
-        aria-hidden={!open}
-        disabled={!open || busy}
+        tabIndex={open === "delete" ? 0 : -1}
+        aria-hidden={open !== "delete"}
+        disabled={open !== "delete" || busy}
         onClick={() => void remove()}
       >
         <Trash2 size={20} />
         削除
+      </button>
+      <button
+        className="swipe-pin"
+        type="button"
+        tabIndex={open === "pin" ? 0 : -1}
+        aria-hidden={open !== "pin"}
+        disabled={open !== "pin" || busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            await onPin();
+            onReveal(null);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {pinned ? <PinOff size={20} /> : <Pin size={20} />}
+        {pinned ? "解除" : "ピン留め"}
       </button>
       <div
         className={`swipe-surface ${drag !== null ? "dragging" : ""}`}
@@ -60,7 +86,7 @@ export default function SwipeNote({
           gesture.current = {
             x: e.clientX,
             y: e.clientY,
-            offset: open ? -88 : 0,
+            offset: resting,
             axis: "pending",
           };
         }}
@@ -79,13 +105,14 @@ export default function SwipeNote({
           }
           if (g.axis === "x") {
             e.preventDefault();
-            setDrag(Math.min(0, Math.max(-88, g.offset + dx)));
+            setDrag(Math.min(88, Math.max(-88, g.offset + dx)));
           }
         }}
         onPointerUp={(e) => {
           const g = gesture.current;
           if (g?.axis === "x") {
-            onReveal(Math.min(0, g.offset + e.clientX - g.x) < -40);
+            const end = g.offset + e.clientX - g.x;
+            onReveal(end < -40 ? "delete" : end > 40 ? "pin" : null);
           }
           gesture.current = null;
           setDrag(null);
@@ -105,12 +132,12 @@ export default function SwipeNote({
           ) {
             e.preventDefault();
             e.stopPropagation();
-            onReveal(false);
+            onReveal(null);
           }
         }}
         onKeyDown={(e) => {
           if (e.key === "Escape") {
-            onReveal(false);
+            onReveal(null);
             setDrag(null);
           }
         }}
@@ -121,8 +148,8 @@ export default function SwipeNote({
           data-row-menu
           className="note-menu icon-button"
           aria-label={`${title}のメニュー`}
-          aria-expanded={open}
-          onClick={() => onReveal(!open)}
+          aria-expanded={!!open}
+          onClick={() => onReveal(open ? null : "delete")}
         >
           <MoreHorizontal size={20} />
         </button>

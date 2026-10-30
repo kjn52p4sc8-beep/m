@@ -1,12 +1,10 @@
+import { openEditorSections, openFolders, openCreateMenu } from "./ui-helpers";
 import { test, expect } from "@playwright/test";
 test("folder CRUD, note autosave, reload, links and cross-category search", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "お金 未来のために" }).click();
-  await page
-    .getByRole("button", { name: "フォルダを管理", exact: true })
-    .click();
+  await openFolders(page, "お金");
   await page.getByRole("button", { name: "フォルダ作成", exact: true }).click();
   await page
     .getByRole("textbox", { name: "新しいフォルダ名" })
@@ -20,6 +18,7 @@ test("folder CRUD, note autosave, reload, links and cross-category search", asyn
   await page.getByRole("button", { name: "来月の計画を上へ" }).click();
   await page.getByRole("button", { name: "来月の計画 0 メモ" }).click();
   await page.getByRole("button", { name: "メモ作成", exact: true }).click();
+  await openEditorSections(page);
   await page
     .getByRole("textbox", { name: "タイトル", exact: true })
     .fill("旅行の予算");
@@ -54,7 +53,7 @@ test("folder CRUD, note autosave, reload, links and cross-category search", asyn
       .getByRole("button", { name: /旅行の予算/ })
       .and(page.locator(".note-row")),
   ).toBeVisible();
-  await page.getByRole("button", { name: "メモ、タグ、リンクを検索" }).click();
+  await page.getByRole("button", { name: "検索" }).click();
   for (const query of [
     "旅行の予算",
     "三万円",
@@ -74,6 +73,7 @@ test("folder CRUD, note autosave, reload, links and cross-category search", asyn
     .getByRole("button", { name: /旅行の予算/ })
     .and(page.locator(".note-row"))
     .click();
+  await openEditorSections(page);
   await expect(
     page.getByRole("textbox", { name: "本文", exact: true }),
   ).toHaveValue("京都に行く。予算は三万円。");
@@ -92,10 +92,7 @@ test("folder CRUD, note autosave, reload, links and cross-category search", asyn
     page.getByRole("searchbox", { name: "検索キーワード" }),
   ).toBeVisible();
   await page.goto("/");
-  await page.getByRole("button", { name: "お金 未来のために" }).click();
-  await page
-    .getByRole("button", { name: "フォルダを管理", exact: true })
-    .click();
+  await openFolders(page, "お金");
   page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "来月の計画を削除" }).click();
   await expect(
@@ -105,7 +102,7 @@ test("folder CRUD, note autosave, reload, links and cross-category search", asyn
 test("responsive layout and dark mode", async ({ page }) => {
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "カテゴリー", exact: true }),
+    page.getByRole("region", { name: "メモ一覧", exact: true }),
   ).toBeVisible();
   expect(
     await page.evaluate(
@@ -128,11 +125,8 @@ test("save failure is visible and can be retried without losing edits", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "最初のメモを作成" }).click();
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "日記", exact: true })
-    .click();
+  await page.getByRole("button", { name: "クイックメモを作成" }).click();
+  await openEditorSections(page);
   // Wait for initial creation before simulating failure of a subsequent save.
   await expect(
     page.getByRole("textbox", { name: "タイトル", exact: true }),
@@ -172,10 +166,7 @@ test("320px layout and folder controls stay within viewport", async ({
 }) => {
   await page.setViewportSize({ width: 320, height: 700 });
   await page.goto("/");
-  await page.getByRole("button", { name: "仕事 アイデアを" }).click();
-  await page
-    .getByRole("button", { name: "フォルダを管理", exact: true })
-    .click();
+  await openFolders(page, "仕事");
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
@@ -183,6 +174,7 @@ test("320px layout and folder controls stay within viewport", async ({
   ).toBeTruthy();
   await page.getByRole("button", { name: "ビジネスアイデア 0 メモ" }).click();
   await page.getByRole("button", { name: "メモ作成", exact: true }).click();
+  await openEditorSections(page);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,

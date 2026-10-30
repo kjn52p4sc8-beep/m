@@ -1,12 +1,10 @@
+import { openEditorSections, openFolders, openCreateMenu } from "./ui-helpers";
 import { test, expect } from "@playwright/test";
 test("folder validation, reorder boundaries and recovery when a category has no folders", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "お金 未来のために" }).click();
-  await page
-    .getByRole("button", { name: "フォルダを管理", exact: true })
-    .click();
+  await openFolders(page, "お金");
   await expect(
     page.getByRole("button", { name: "収入・支出を上へ" }),
   ).toBeDisabled();
@@ -26,6 +24,7 @@ test("folder validation, reorder boundaries and recovery when a category has no 
       .click();
   }
   await page.getByRole("button", { name: "メモ作成", exact: true }).click();
+  await openEditorSections(page);
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "フォルダを作成", exact: true })
@@ -38,16 +37,13 @@ test("note location, link error recovery, safe opening, removal and search clear
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "最初のメモを作成" }).click();
+  await page.getByRole("button", { name: "クイックメモを作成" }).click();
+  await openEditorSections(page);
+  await page.getByRole("button", { name: "メモの背景色を変更" }).click();
   await expect(page.locator("#root")).toHaveAttribute("inert", "");
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.locator("#root")).not.toHaveAttribute("inert", "");
-  await page.getByRole("button", { name: "最初のメモを作成" }).click();
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "日記", exact: true })
-    .click();
   await page
     .getByRole("textbox", { name: "タイトル", exact: true })
     .fill("移動メモ");
@@ -91,6 +87,7 @@ test("note location, link error recovery, safe opening, removal and search clear
     .getByRole("button", { name: /移動メモ/ })
     .and(page.locator(".note-row"))
     .click();
+  await openEditorSections(page);
   await expect(page.getByLabel("カテゴリー", { exact: true })).toHaveValue(
     "study",
   );
@@ -98,7 +95,7 @@ test("note location, link error recovery, safe opening, removal and search clear
     page.getByLabel("フォルダ", { exact: true }).locator("option:checked"),
   ).toHaveText("読書");
   await page.getByRole("button", { name: "戻る", exact: true }).click();
-  await page.getByRole("button", { name: "メモ、タグ、リンクを検索" }).click();
+  await page.getByRole("button", { name: "検索" }).click();
   await page.getByRole("searchbox", { name: "検索キーワード" }).fill("不一致");
   await expect(page.getByText("一致するメモがありません")).toBeVisible();
   await page.getByRole("button", { name: "検索をクリア" }).click();
@@ -147,11 +144,8 @@ test("annotation controls, secondary touches and save-error retry", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "最初のメモを作成" }).click();
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "日記", exact: true })
-    .click();
+  await page.getByRole("button", { name: "クイックメモを作成" }).click();
+  await openEditorSections(page);
   const base64 = await page.evaluate(() => {
     const c = document.createElement("canvas");
     c.width = 600;
@@ -227,6 +221,7 @@ test("annotation controls, secondary touches and save-error retry", async ({
     .getByRole("button", { name: /無題のメモ/ })
     .and(page.locator(".note-row"))
     .click();
+  await openEditorSections(page);
   await page.getByRole("button", { name: "controls.pngを拡大" }).click();
   await expect(
     page.getByRole("img", { name: "注釈キャンバス" }).locator("text"),

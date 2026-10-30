@@ -5,7 +5,7 @@ import type { Note, Folder } from "./model";
 import { safeUrl } from "./search";
 import { validateTables } from "./tables";
 const key = (id: string) => `my-memo-draft:${id}`;
-const content = (n: Note) =>
+const content = (n: Note, legacy = false) =>
   JSON.stringify([
     n.title,
     n.body,
@@ -20,6 +20,7 @@ const content = (n: Note) =>
     n.favorite,
     n.folderId,
     n.categoryId,
+    ...(!legacy ? [n.backgroundColor] : []),
   ]);
 export function writeDraft(note: Note, base: Note) {
   localStorage.setItem(
@@ -42,6 +43,8 @@ export function recoverDraft(initial: Note, folders: Folder[]) {
       envelope.version !== 1 ||
       !(
         envelope.base === content(initial) ||
+        (initial.backgroundColor === undefined &&
+          envelope.base === content(initial, true)) ||
         (!initial.bodyColors &&
           !initial.characterLimit &&
           !initial.favorite &&

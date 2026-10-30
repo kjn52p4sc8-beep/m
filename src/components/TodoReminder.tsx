@@ -69,7 +69,7 @@ export default function TodoReminder({
       clearInterval(timer);
       document.removeEventListener("visibilitychange", check);
     };
-  }, [paused]);
+  }, [paused, notes]);
   if (paused || (!notices.length && !error)) return null;
   return (
     <section className="reminder-banner" aria-label="ToDoのお知らせ">

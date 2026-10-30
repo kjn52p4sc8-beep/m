@@ -23,7 +23,7 @@ export default function TrashView({
     <section>
       <h1>ごみ箱</h1>
       <p className="muted">
-        メモ・画像・録音・注釈を元のフォルダへ復元できます。自動では削除しません。
+        削除したメモは30日以上保管します。30日を過ぎても自動削除しません。画像・録音・色・分類も復元できます。
       </p>
       {!notes.length && <p className="empty">ごみ箱は空です。</p>}
       {notes.map((note) => (

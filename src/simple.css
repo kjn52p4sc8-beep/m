@@ -1,0 +1,403 @@
+/* A single, quiet list across phone and desktop. Existing data views remain available. */
+.simple-ui .sidebar {
+  display: none;
+}
+.simple-ui {
+  display: block;
+}
+.simple-ui .main-area {
+  margin: 0 auto;
+  width: 100%;
+  max-width: 760px;
+}
+.simple-ui .topbar {
+  height: auto;
+  min-height: 64px;
+  padding: calc(8px + var(--safe-top, 0px)) 16px 8px;
+  border: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.simple-brand {
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: -0.8px;
+  color: var(--text);
+}
+.header-actions {
+  display: flex;
+  gap: 4px;
+}
+.simple-ui main {
+  max-width: none;
+  padding: 0 max(16px, var(--safe-right, 0px))
+    calc(92px + var(--safe-bottom, 0px)) max(16px, var(--safe-left, 0px));
+}
+.simple-ui .notes-list {
+  display: block;
+  margin: 0;
+}
+.memo-color-white {
+  --memo-bg: #fff;
+}
+.memo-color-yellow {
+  --memo-bg: #fff8d9;
+}
+.memo-color-pink {
+  --memo-bg: #fcebf0;
+}
+.memo-color-green {
+  --memo-bg: #eaf4e9;
+}
+.memo-color-blue {
+  --memo-bg: #eaf2fb;
+}
+.memo-color-purple {
+  --memo-bg: #f2edfa;
+}
+.dark .memo-color-white {
+  --memo-bg: #171d19;
+}
+.dark .memo-color-yellow {
+  --memo-bg: #383321;
+}
+.dark .memo-color-pink {
+  --memo-bg: #39262e;
+}
+.dark .memo-color-green {
+  --memo-bg: #24372b;
+}
+.dark .memo-color-blue {
+  --memo-bg: #253342;
+}
+.dark .memo-color-purple {
+  --memo-bg: #322b40;
+}
+.simple-ui .swipe-note {
+  border-radius: 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--memo-bg);
+}
+.simple-ui .swipe-surface {
+  border-radius: 0;
+  background: var(--memo-bg);
+}
+.simple-ui .swipe-surface .note-row {
+  display: flex;
+  align-items: center;
+  border: 0;
+  border-radius: 0;
+  min-height: 76px;
+  padding: 12px 48px 12px 10px;
+  background: var(--memo-bg);
+  box-shadow: none;
+  gap: 8px;
+}
+.simple-ui .note-summary {
+  display: block;
+  min-width: 0;
+  width: 100%;
+  position: relative;
+}
+.simple-ui .note-summary strong {
+  display: block;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 66px;
+}
+.simple-ui .note-summary > span {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 2px 0 0;
+}
+.simple-ui .note-updated {
+  position: absolute;
+  right: 0;
+  top: 3px;
+  font-size: 11px;
+  color: var(--muted);
+  margin: 0;
+  white-space: nowrap;
+}
+.simple-ui .note-menu {
+  top: 50%;
+  transform: translateY(-50%);
+  right: 0;
+  background: transparent;
+  border-radius: 0;
+}
+.pin-marker {
+  color: var(--accent);
+  font-size: 15px;
+}
+.swipe-pin {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 88px;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+}
+.simple-ui .empty {
+  border: 0;
+  border-radius: 0;
+  margin: 0;
+  padding: 40px 10px;
+  text-align: center;
+}
+.simple-bottom {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, 760px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px max(16px, var(--safe-right, 0px))
+    calc(8px + var(--safe-bottom, 0px)) max(16px, var(--safe-left, 0px));
+  z-index: 35;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+.simple-bottom .text-button {
+  min-height: 44px;
+  gap: 6px;
+  padding: 8px 10px;
+}
+.simple-bottom [aria-current="page"] {
+  font-weight: 700;
+}
+.simple-create {
+  margin-left: auto;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  background: var(--accent);
+  color: var(--surface);
+}
+.simple-ui .search-input {
+  margin: 0 0 8px;
+  border-radius: 10px;
+  min-height: 48px;
+}
+.simple-ui summary {
+  min-height: 44px;
+  cursor: pointer;
+  padding: 10px 0;
+  color: var(--accent);
+  font-size: 14px;
+}
+.color-filter-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 0 12px;
+}
+.color-swatch {
+  min-width: 44px;
+  min-height: 44px;
+  background: var(--memo-bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 14px;
+}
+.color-swatch[aria-pressed="true"] {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.simple-ui .search-filters {
+  margin: 0 0 12px;
+  padding: 0;
+  border: 0;
+}
+.simple-ui .search-filters:not([open]) {
+  display: block;
+}
+.simple-ui .section-heading h2 {
+  font-size: 18px;
+}
+.organization-menu {
+  margin: 12px 0;
+}
+.organization-menu .text-button {
+  margin-right: 12px;
+}
+.simple-ui .editor {
+  background: var(--memo-bg);
+  border-radius: 0;
+  padding: 0 8px;
+}
+.simple-ui.is-editing main {
+  padding-top: 0;
+  padding-bottom: calc(110px + var(--safe-bottom, 0px));
+}
+.simple-ui .editor-toolbar {
+  position: sticky;
+  top: 0;
+  background: var(--memo-bg);
+  margin: 0 0 12px;
+  padding-top: var(--safe-top, 0px);
+  min-height: calc(56px + var(--safe-top, 0px));
+}
+.simple-ui .editor-paper {
+  background: transparent;
+}
+.simple-ui .note-title-input {
+  font-size: 24px;
+  padding: 8px 0;
+  min-height: 48px;
+  margin: 0;
+  background: transparent;
+}
+.simple-ui .note-date {
+  display: none;
+}
+.simple-ui .note-body-input,
+.simple-ui .body-color-layer {
+  min-height: 220px;
+  margin-top: 8px;
+  padding: 8px 0;
+  font-size: 17px;
+  line-height: 1.75;
+}
+.simple-ui .note-body-input {
+  background: transparent;
+}
+.simple-ui .colored-body {
+  margin-bottom: 12px;
+}
+.editor-organization,
+.editor-extras {
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+}
+.editor-checklist[hidden] {
+  display: none;
+}
+.editor-dock {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, 760px);
+  height: calc(64px + var(--safe-bottom, 0px));
+  padding: 8px max(12px, var(--safe-right, 0px))
+    calc(12px + var(--safe-bottom, 0px));
+  display: flex;
+  justify-content: flex-end;
+  gap: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  z-index: 40;
+}
+.simple-ui .writing-tools .count-button {
+  left: max(calc((100vw - 760px) / 2 + 12px), 12px);
+  bottom: calc(12px + var(--safe-bottom, 0px));
+  max-width: calc(min(100vw, 760px) - 164px);
+  min-height: 44px;
+  box-shadow: none;
+  border: 0;
+  font-size: 12px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+.simple-ui .count-details {
+  left: max(calc((100vw - 760px) / 2 + 12px), 12px);
+}
+body[data-scroll-lock] .editor-dock {
+  visibility: hidden;
+}
+.palette-sheet {
+  align-items: flex-end;
+  padding-bottom: var(--safe-bottom, 0px);
+}
+.palette-sheet .modal {
+  max-width: 500px;
+  width: 100%;
+  border-radius: 16px 16px 0 0;
+}
+.note-color-options {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  padding: 6px 0 10px;
+}
+.palette-sheet .section-heading {
+  margin-bottom: 6px;
+}
+.palette-sheet h2 {
+  font-size: 17px;
+}
+.palette-sheet .color-swatch {
+  padding: 6px 1px;
+  font-size: 12px;
+}
+@media (max-width: 767px) {
+  [data-keyboard="open"] .simple-bottom {
+    display: none;
+  }
+  [data-keyboard="open"] .editor-dock {
+    top: calc(var(--visible-top) + var(--visible-height) - 96px);
+    bottom: auto;
+    height: 48px;
+    padding: 2px 12px;
+  }
+  [data-keyboard="open"] .simple-ui .writing-tools .count-button {
+    top: calc(var(--visible-top) + var(--visible-height) - 46px);
+    bottom: auto;
+    max-width: calc(100vw - 170px);
+  }
+  [data-keyboard="open"] .simple-ui .editor-toolbar {
+    top: var(--visible-top);
+    padding-top: 0;
+    min-height: 56px;
+  }
+  [data-keyboard="open"] .simple-ui.is-editing main {
+    padding-bottom: 140px;
+  }
+  .simple-ui .location-fields {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .simple-ui * {
+    scroll-behavior: auto;
+  }
+}
+.simple-ui .swipe-note {
+  --muted: #59635d;
+}
+.dark .simple-ui .swipe-note {
+  --muted: #b7c3bc;
+}
+.pin-marker {
+  display: inline-flex;
+  margin-right: 4px;
+  vertical-align: baseline;
+}
+@media (max-width: 360px) {
+  .note-color-options {
+    grid-template-columns: repeat(3, minmax(44px, 1fr));
+  }
+}

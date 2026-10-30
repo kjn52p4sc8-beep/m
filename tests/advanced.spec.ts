@@ -1,3 +1,4 @@
+import { openEditorSections, openFolders, openCreateMenu } from "./ui-helpers";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 test("literal replacement, undo, editable tables and backup roundtrip", async ({
@@ -7,6 +8,7 @@ test("literal replacement, undo, editable tables and backup roundtrip", async ({
   await page
     .getByRole("button", { name: "クイックメモを作成", exact: true })
     .click();
+  await openEditorSections(page);
   await page
     .getByRole("textbox", { name: "タイトル", exact: true })
     .fill("旅の計画");
@@ -56,6 +58,7 @@ test("literal replacement, undo, editable tables and backup roundtrip", async ({
     .getByRole("button", { name: /旅の計画/ })
     .and(page.locator(".note-row"))
     .click();
+  await openEditorSections(page);
   await expect(page.getByLabel("表1 行2 列3", { exact: true })).toHaveValue(
     "交通費",
   );
@@ -95,6 +98,7 @@ test("records real encoded audio from a synthetic microphone, restores and plays
   await page
     .getByRole("button", { name: "クイックメモを作成", exact: true })
     .click();
+  await openEditorSections(page);
   await page
     .getByRole("textbox", { name: "タイトル", exact: true })
     .fill("録音メモ");
@@ -134,6 +138,7 @@ test("records real encoded audio from a synthetic microphone, restores and plays
     .getByRole("button", { name: /録音メモ/ })
     .and(page.locator(".note-row"))
     .click();
+  await openEditorSections(page);
   await page
     .locator("audio")
     .evaluate((audio: HTMLAudioElement) => audio.play());
@@ -163,6 +168,7 @@ test("denied microphone permission is explained without leaving the editor locke
   await page
     .getByRole("button", { name: "クイックメモを作成", exact: true })
     .click();
+  await openEditorSections(page);
   await page.getByRole("button", { name: "録音を開始", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText(
     "マイクの使用が許可されませんでした",

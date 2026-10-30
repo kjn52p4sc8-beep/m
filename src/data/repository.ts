@@ -1,3 +1,4 @@
+import { validateNoteColor } from "./noteColors";
 import {
   validateTodos,
   taskRows,
@@ -46,6 +47,11 @@ export class MemoDatabase extends Dexie {
       notes: "id, categoryId, folderId, updatedAt, deletedAt, lastOpenedAt",
     });
     this.version(6).stores({ reminderReceipts: "id, noteId" });
+    // Additive color index; missing colors render as white without rewriting old notes.
+    this.version(7).stores({
+      notes:
+        "id, categoryId, folderId, updatedAt, deletedAt, lastOpenedAt, backgroundColor",
+    });
   }
 }
 export const db = new MemoDatabase();
@@ -134,6 +140,7 @@ export async function moveFolder(id: string, direction: number) {
   });
 }
 export async function saveNote(note: Note) {
+  validateNoteColor(note.backgroundColor);
   validateTodos(note.todos);
   await db.transaction("rw", db.folders, db.notes, async () => {
     const folder = await db.folders.get(note.folderId);
@@ -444,5 +451,13 @@ export async function claimDueReminders(
     }
     if (!canDeliver()) throw Error("Reminder cancelled");
     return result;
+  });
+}
+
+export async function togglePinned(id: string) {
+  await db.transaction("rw", db.notes, async () => {
+    const note = await db.notes.get(id);
+    if (!note || note.deletedAt) throw Error("メモが見つかりません。");
+    await db.notes.update(id, { favorite: !note.favorite });
   });
 }

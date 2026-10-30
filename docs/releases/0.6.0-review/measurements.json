@@ -1,0 +1,16 @@
+{
+  "0.5.0": {
+    "firstRowTop": 291,
+    "rowHeight": 130.796875,
+    "fullyVisible": 3,
+    "visibleHeight": 844,
+    "navTop": 719
+  },
+  "0.6.0": {
+    "firstRowTop": 64,
+    "rowHeight": 76,
+    "fullyVisible": 8,
+    "visibleHeight": 844,
+    "navTop": 779
+  }
+}

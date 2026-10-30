@@ -1,8 +1,10 @@
+import { openEditorSections, openFolders, openCreateMenu } from "./ui-helpers";
 import { test, expect, type Page } from "@playwright/test";
 async function newMemo(page: Page, title = "", body = "") {
   await page
     .getByRole("button", { name: "クイックメモを作成", exact: true })
     .click();
+  await openEditorSections(page);
   if (title) await page.getByLabel("タイトル", { exact: true }).fill(title);
   if (body) await page.getByLabel("本文", { exact: true }).fill(body);
   await page.getByRole("button", { name: "戻る", exact: true }).click();
@@ -76,7 +78,7 @@ test("quick ToDo creation, deadline sorting, editing and completion persist", as
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "ToDoを追加", exact: true }).click();
+  await page.getByRole("button", { name: "ToDo", exact: true }).click();
   await page.getByLabel("やること", { exact: true }).fill("期限なし");
   await page.getByRole("button", { name: "追加", exact: true }).click();
   await page.getByRole("button", { name: "ToDo", exact: true }).click();
@@ -145,7 +147,7 @@ test("permission is requested on opt-in, foreground notices deduplicate and comp
   });
   await page.goto("/");
   expect(await page.evaluate(() => (window as any).permissionRequests)).toBe(0);
-  await page.getByRole("button", { name: "ToDoを追加", exact: true }).click();
+  await page.getByRole("button", { name: "ToDo", exact: true }).click();
   await page.getByLabel("やること", { exact: true }).fill("通知する項目");
   await page.getByText("期限・通知（任意）", { exact: true }).click();
   await page.getByLabel("通知タイミング").selectOption("custom");
@@ -180,7 +182,7 @@ test("denied notification permission is explained and settings can be turned off
     });
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "ToDoを追加", exact: true }).click();
+  await page.getByRole("button", { name: "ToDo", exact: true }).click();
   await page.getByLabel("やること", { exact: true }).fill("通知なしにもできる");
   await page.getByText("期限・通知（任意）", { exact: true }).click();
   await page.getByLabel("期限日時").fill("2040-01-01T10:00");
@@ -190,7 +192,7 @@ test("denied notification permission is explained and settings can be turned off
   );
   await page.getByLabel("通知タイミング").selectOption("off");
   await page.getByRole("button", { name: "追加", exact: true }).click();
-  await expect(page.locator(".todo-panel")).toContainText("通知なしにもできる");
+  await expect(page.locator(".todo-full")).toContainText("通知なしにもできる");
 });
 test("captures pasted links and previews exactly the outgoing share/copy content", async ({
   page,
@@ -217,7 +219,7 @@ test("captures pasted links and previews exactly the outgoing share/copy content
     });
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "作成メニューを開く" }).click();
+  await openCreateMenu(page);
   await page
     .getByRole("button", { name: "URL・テキストを保存", exact: true })
     .click();
@@ -229,11 +231,13 @@ test("captures pasted links and previews exactly the outgoing share/copy content
     .getByLabel("URL・テキスト", { exact: true })
     .fill("javascript:alert(1)");
   await page.getByRole("button", { name: "メモに保存", exact: true }).click();
+  await openEditorSections(page);
   await expect(page.getByRole("alert")).toContainText("URL形式");
   await page
     .getByLabel("URL・テキスト", { exact: true })
     .fill("あとで見る https://youtu.be/example");
   await page.getByRole("button", { name: "メモに保存", exact: true }).click();
+  await openEditorSections(page);
   await expect(page.getByRole("link", { name: /YouTube/ })).toHaveAttribute(
     "href",
     "https://youtu.be/example",
@@ -258,6 +262,7 @@ test("captures pasted links and previews exactly the outgoing share/copy content
   await page.getByRole("button", { name: "戻る", exact: true }).click();
   await page.reload();
   await page.locator(".note-row").first().click();
+  await openEditorSections(page);
   await expect(page.getByRole("link", { name: /YouTube/ })).toHaveAttribute(
     "rel",
     "noopener noreferrer",
@@ -284,6 +289,7 @@ test("unavailable share/copy and cancelled sharing keep the memo and its preview
   await page.goto("/");
   await newMemo(page, "共有の確認", "そのまま残す本文");
   await page.locator(".note-row").first().click();
+  await openEditorSections(page);
   await page.getByRole("button", { name: "メモの文章を共有" }).click();
   await expect(
     page.getByRole("button", { name: "共有メニューを開く" }),

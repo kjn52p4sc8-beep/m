@@ -1,13 +1,15 @@
+import { openEditorSections, openFolders, openCreateMenu } from "./ui-helpers";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
-test("category tabs filter the home list and quick creation uses the selected category", async ({
+test("legacy folder navigation preserves categories while home stays unfiltered", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "仕事 アイデアを" }).click();
+  await openFolders(page, "仕事");
   await page
     .getByRole("button", { name: "クイックメモを作成", exact: true })
     .click();
+  await openEditorSections(page);
   await expect(page.getByLabel("カテゴリー", { exact: true })).toHaveValue(
     "work",
   );
@@ -20,13 +22,13 @@ test("category tabs filter the home list and quick creation uses the selected ca
       .getByRole("button", { name: /仕事のクイックメモ/ })
       .and(page.locator(".note-row")),
   ).toBeVisible();
-  await page.getByRole("button", { name: "お金 未来のために" }).click();
+  await openFolders(page, "お金");
   await expect(
     page
       .getByRole("button", { name: /仕事のクイックメモ/ })
       .and(page.locator(".note-row")),
   ).toHaveCount(0);
-  await page.getByRole("button", { name: "すべて", exact: true }).click();
+  await page.getByRole("button", { name: "メモ", exact: true }).click();
   await expect(
     page
       .getByRole("button", { name: /仕事のクイックメモ/ })
@@ -46,6 +48,7 @@ test("quick creation, checklist dashboard, search highlight and trash restore pr
   await page
     .getByRole("button", { name: "クイックメモを作成", exact: true })
     .click();
+  await openEditorSections(page);
   await page
     .getByRole("textbox", { name: "タイトル", exact: true })
     .fill("旅の準備");
@@ -62,11 +65,14 @@ test("quick creation, checklist dashboard, search highlight and trash restore pr
     .getByRole("textbox", { name: "チェック項目", exact: true })
     .fill("充電器を用意");
   await page.getByRole("button", { name: "戻る", exact: true }).click();
+  await page.getByRole("button", { name: "ToDo", exact: true }).click();
   const panel = page.getByRole("region", { name: "やること一覧" });
   await expect(panel).toContainText("充電器を用意");
   // Completion removes this row from the compact pending list.
   await panel.getByRole("checkbox", { name: "充電器を用意を完了" }).click();
-  await expect(panel).toHaveCount(0);
+  await expect(
+    panel.getByRole("checkbox", { name: "充電器を用意を完了" }),
+  ).toBeHidden();
   await page.getByRole("button", { name: "ToDo", exact: true }).click();
   await page.getByText("完了した項目（1）", { exact: true }).click();
   await expect(
@@ -81,19 +87,16 @@ test("quick creation, checklist dashboard, search highlight and trash restore pr
     .getByRole("button", { name: "旅の準備を復元", exact: true })
     .click();
   await page.goto("/");
-  await page
-    .getByRole("button", { name: "メモ、タグ、リンクを検索 検索", exact: true })
-    .click();
+  await page.getByRole("button", { name: "検索", exact: true }).click();
   await page.getByRole("searchbox", { name: "検索キーワード" }).fill("カメラ");
   await expect(page.locator(".notes-list mark")).toHaveText("カメラ");
-  await page
-    .getByText("カテゴリー・フォルダ・タグで絞り込む", { exact: true })
-    .click();
+  await page.getByText("高度な検索", { exact: true }).click();
   await page.getByLabel("タグで絞り込み").selectOption("週末");
   await page
     .getByRole("button", { name: /旅の準備/ })
     .and(page.locator(".note-row"))
     .click();
+  await openEditorSections(page);
   await expect(
     page.getByRole("textbox", { name: "本文", exact: true }),
   ).toHaveValue("小さな旅へ。カメラを持っていく。");
@@ -109,6 +112,7 @@ test("backup restores theme, tasks and trash; old v1 imports keep existing theme
   await page
     .getByRole("button", { name: "クイックメモを作成", exact: true })
     .click();
+  await openEditorSections(page);
   await page
     .getByRole("textbox", { name: "タイトル", exact: true })
     .fill("復元するメモ");

@@ -5,10 +5,12 @@ export default function Modal({
   children,
   onClose,
   label,
+  className = "",
 }: {
   children: ReactNode;
   onClose: () => void;
   label: string;
+  className?: string;
 }) {
   const ref = useRef<HTMLElement>(null);
   const closeRef = useRef(onClose);
@@ -84,7 +86,7 @@ export default function Modal({
     };
   }, []);
   return createPortal(
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className={`modal-backdrop ${className}`} onClick={onClose}>
       <section
         ref={ref}
         tabIndex={-1}

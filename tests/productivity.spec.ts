@@ -1,3 +1,4 @@
+import { openEditorSections, openFolders, openCreateMenu } from "./ui-helpers";
 import { test, expect } from "@playwright/test";
 test("counts graphemes, colors selection and typed text, saves limits and favorites", async ({
   page,
@@ -6,6 +7,7 @@ test("counts graphemes, colors selection and typed text, saves limits and favori
   await page
     .getByRole("button", { name: "クイックメモを作成", exact: true })
     .click();
+  await openEditorSections(page);
   await page.getByLabel("タイトル", { exact: true }).fill("色付きレポート");
   const body = page.getByLabel("本文", { exact: true });
   await body.fill("日本 👨‍👩‍👧‍👦\nAB");
@@ -41,12 +43,12 @@ test("counts graphemes, colors selection and typed text, saves limits and favori
   );
   await page.getByRole("button", { name: "お気に入り", exact: true }).click();
   await page.getByRole("button", { name: "戻る", exact: true }).click();
-  await expect(
-    page.getByRole("region", { name: "お気に入りのメモ" }),
-  ).toContainText("色付きレポート");
+  await expect(page.getByRole("region", { name: "メモ一覧" })).toContainText(
+    "色付きレポート",
+  );
   await page.reload();
   await page
-    .getByRole("region", { name: "お気に入りのメモ" })
+    .getByRole("region", { name: "メモ一覧" })
     .getByRole("button", { name: /色付きレポート/ })
     .and(page.locator(".note-row"))
     .click();

@@ -1,10 +1,9 @@
 import { useState } from "react";
 import SwipeNote from "./SwipeNote";
-import { FileText, ChevronRight, NotebookPen, Plus } from "lucide-react";
+import { Pin } from "lucide-react";
 import type { Note, Category, Folder } from "../data/model";
 import Highlight from "./Highlight";
 import { excerpt } from "../data/highlight";
-import NoteThumbnail from "./NoteThumbnail";
 export default function NoteList({
   notes,
   query = "",
@@ -12,6 +11,7 @@ export default function NoteList({
   folders,
   onOpen,
   onDelete,
+  onPin,
   onCreate,
   searching,
   empty,
@@ -22,27 +22,37 @@ export default function NoteList({
   folders: Folder[];
   onOpen: (note: Note) => void;
   onDelete: (note: Note) => Promise<void>;
+  onPin: (note: Note) => Promise<void>;
   onCreate: () => void;
   searching: boolean;
   empty: string;
 }) {
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [opened, setOpened] = useState<{
+    id: string;
+    side: "delete" | "pin";
+  } | null>(null);
   return notes.length ? (
     <div className="notes-list">
       {notes.map((n) => {
-        const c = categories.find((c) => c.id === n.categoryId);
         return (
           <SwipeNote
             key={n.id}
             title={n.title || "無題のメモ"}
-            open={openId === n.id}
-            onReveal={(v) => setOpenId(v ? n.id : null)}
+            open={opened?.id === n.id ? opened.side : null}
+            onReveal={(side) => setOpened(side ? { id: n.id, side } : null)}
+            color={n.backgroundColor || "white"}
+            pinned={!!n.favorite}
+            onPin={() => onPin(n)}
             onDelete={() => onDelete(n)}
           >
             <button className="note-row" onClick={() => onOpen(n)}>
-              <NoteThumbnail noteId={n.id} updatedAt={n.updatedAt} />
               <span className="note-summary">
                 <strong>
+                  {n.favorite && (
+                    <span className="pin-marker" aria-label="お気に入り">
+                      <Pin size={13} />
+                    </span>
+                  )}
                   <Highlight text={n.title || "無題のメモ"} query={query} />
                 </strong>
                 <span>
@@ -63,27 +73,17 @@ export default function NoteList({
                                 ...l.tags,
                               ]),
                             ].join(" ")
-                          : n.body,
+                          : n.body ||
+                              (n.todos || [])
+                                .map((t) => `${t.done ? "☑" : "☐"} ${t.text}`)
+                                .join("　") ||
+                              n.links.map((l) => l.title).join("　"),
                         query,
-                      ) || "自由にメモを書き始めましょう"
+                      ) || "本文なし"
                     }
                     query={query}
                   />
                 </span>
-                <small>
-                  {n.favorite && <span aria-label="お気に入り">★</span>}
-                  {n.trip && <span className="tag-pill">旅行予算</span>}
-                  {n.loans && <span className="tag-pill">貸し借り</span>}
-                  <b className={`category-badge ${c?.color}`}>{c?.name}</b>{" "}
-                  <span className="note-folder">
-                    {folders.find((f) => f.id === n.folderId)?.name}
-                  </span>{" "}
-                  {n.tags.map((t) => (
-                    <span className="tag-pill" key={t}>
-                      #<Highlight text={t} query={query} />
-                    </span>
-                  ))}
-                </small>
                 <time className="note-updated" dateTime={n.updatedAt}>
                   {new Date(n.updatedAt).toLocaleString("ja-JP", {
                     month: "numeric",
@@ -93,7 +93,6 @@ export default function NoteList({
                   })}
                 </time>
               </span>
-              <ChevronRight className="note-chevron" size={16} />
             </button>
           </SwipeNote>
         );
@@ -101,19 +100,8 @@ export default function NoteList({
     </div>
   ) : (
     <div className="empty">
-      <NotebookPen size={32} />
-      <h3>{empty}</h3>
-      <p>
-        {searching
-          ? "別のキーワードで探してみてください。"
-          : "小さなアイデアから、残してみませんか。"}
-      </p>
-      {!searching && (
-        <button className="text-button" onClick={onCreate}>
-          <Plus size={17} />
-          最初のメモを作成
-        </button>
-      )}
+      <p>{empty}</p>
+      {!searching && <p className="muted">右下の＋から書き始める</p>}
     </div>
   );
 }

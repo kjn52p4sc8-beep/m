@@ -1,3 +1,4 @@
+import { openEditorSections, openFolders, openCreateMenu } from "./ui-helpers";
 import { test, expect, type Page } from "@playwright/test";
 async function viewport(page: Page, height: number, offsetTop = 0, scale = 1) {
   await page.evaluate(
@@ -16,18 +17,15 @@ async function viewport(page: Page, height: number, offsetTop = 0, scale = 1) {
 }
 async function newNote(page: Page) {
   await page.goto("/");
-  await page.getByRole("button", { name: "最初のメモを作成" }).click();
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "日記", exact: true })
-    .click();
+  await page.getByRole("button", { name: "クイックメモを作成" }).click();
+  await openEditorSections(page);
 }
 test("keyboard simulation hides navigation and keeps dismiss action above keyboard", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  await page.getByRole("button", { name: "メモ、タグ、リンクを検索" }).click();
+  await page.getByRole("button", { name: "検索" }).click();
   const input = page.getByRole("searchbox", { name: "検索キーワード" });
   await input.focus();
   await input.fill("入力テスト");
@@ -96,6 +94,7 @@ test("safe areas, readable inputs, sticky editing actions and long-form scrollin
     .getByRole("button", { name: /無題のメモ/ })
     .and(page.locator(".note-row"))
     .click();
+  await openEditorSections(page);
   await expect(
     page.getByRole("textbox", { name: "本文", exact: true }),
   ).toHaveValue("長い本文\n".repeat(80));
@@ -170,6 +169,7 @@ test("returning from a memo restores the home list scroll position", async ({
     await page
       .getByRole("button", { name: "クイックメモを作成", exact: true })
       .click();
+    await openEditorSections(page);
     await page
       .getByRole("textbox", { name: "タイトル", exact: true })
       .fill(`一覧のメモ ${i}`);
