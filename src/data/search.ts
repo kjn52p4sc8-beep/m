@@ -20,28 +20,23 @@ export function parseTags(value: string) {
     ),
   ];
 }
-export function searchNotes(notes: Note[], query: string) {
-  const terms = query
-    .normalize("NFKC")
-    .toLocaleLowerCase()
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  return notes.filter((n) => {
-    const text = [
-      n.title,
-      n.body,
-      ...n.tags,
-      n.trip?.destination || "",
-      ...(n.trip?.expenses || []).flatMap((e) => [e.category, e.memo]),
-      ...(n.loans || []).flatMap((l) => [l.person, l.memo]),
-      ...(n.todos || []).map((t) => t.text),
-      ...(n.tables || []).flatMap((t) => [t.title, ...t.rows.flat()]),
-      ...n.links.flatMap((l) => [l.title, l.url, ...l.tags]),
-    ]
-      .join(" ")
-      .normalize("NFKC")
-      .toLocaleLowerCase();
-    return terms.every((term) => text.includes(term));
-  });
+const normalize = (value: string) => value.normalize("NFKC").toLocaleLowerCase();
+export function searchableText(n: Note) {
+  return normalize([
+    n.title,n.body,...n.tags,n.trip?.destination || "",
+    ...(n.trip?.expenses || []).flatMap(e=>[e.category,e.memo]),
+    ...(n.loans || []).flatMap(l=>[l.person,l.memo]),
+    ...(n.todos || []).map(t=>t.text),
+    ...(n.tables || []).flatMap(t=>[t.title,...t.rows.flat()]),
+    ...n.links.flatMap(l=>[l.title,l.url,...l.tags]),
+  ].join(" "));
 }
+// Reuse normalized documents for each query until the note snapshot changes.
+export function createSearchIndex(notes: Note[]) {
+  const documents=notes.filter(n=>!n.deletedAt).map(note=>({note,text:searchableText(note)}));
+  return (query:string) => {
+    const terms=normalize(query).trim().split(/\s+/).filter(Boolean);
+    return documents.filter(d=>terms.every(term=>d.text.includes(term))).map(d=>d.note);
+  };
+}
+export function searchNotes(notes:Note[],query:string) {return createSearchIndex(notes)(query);}

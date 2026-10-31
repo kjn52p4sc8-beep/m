@@ -38,12 +38,12 @@ export async function showSystemReminder(text: string, key: string) {
       ? await navigator.serviceWorker.getRegistration()
       : undefined;
   if (reg?.active)
-    await reg.showNotification("My MemoのToDo", {
+    await reg.showNotification("My Memoのお知らせ", {
       body: text.slice(0, 200),
       tag: key,
     });
   else {
-    const n = new Notification("My MemoのToDo", {
+    const n = new Notification("My Memoのお知らせ", {
       body: text.slice(0, 200),
       tag: key,
     });

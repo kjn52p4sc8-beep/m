@@ -1,15 +1,19 @@
 import type { Note } from "../data/model";
-import { taskRows, reminderKey, notificationTime } from "../data/todos";
+import {reminderCandidates} from "../data/noteReminders";
 import { useEffect, useState } from "react";
 import { claimDueReminders } from "../data/repository";
 import { showSystemReminder, closeStaleReminders } from "../platform/reminders";
 export default function TodoReminder({
   paused,
   onShow,
+  onOpen,
+  onDelivered,
   notes,
 }: {
   paused: boolean;
   onShow: () => void;
+  onOpen: (id:string) => void;
+  onDelivered: () => void;
   notes: Note[];
 }) {
   const [notices, setNotices] = useState<
@@ -18,9 +22,7 @@ export default function TodoReminder({
     [error, setError] = useState("");
   useEffect(() => {
     const keys = new Set(
-      taskRows(notes)
-        .filter((t) => notificationTime(t.item) !== null)
-        .map((t) => reminderKey(t.note.id, t.item)),
+      reminderCandidates(notes).map(t=>t.key),
     );
     setNotices((current) => current.filter((n) => keys.has(n.key)));
     void closeStaleReminders(keys);
@@ -39,6 +41,7 @@ export default function TodoReminder({
         );
         if (active && due.length) {
           setNotices((current) => [...current, ...due].slice(-20));
+          onDelivered();
           for (const entry of due) {
             try {
               if (document.visibilityState === "visible")
@@ -74,9 +77,9 @@ export default function TodoReminder({
   return (
     <section className="reminder-banner" aria-label="ToDoのお知らせ">
       <div role="status">
-        <strong>通知時刻を過ぎたToDo</strong>
+        <strong>通知時刻を過ぎたメモ・ToDo</strong>
         {notices.map((n) => (
-          <p key={n.key}>{n.item.text}</p>
+          <p key={n.key}>{n.kind === "note" ? <button className="text-button" onClick={()=>onOpen(n.noteId)}>{n.item.text}を開く</button> : n.item.text}</p>
         ))}
         {error && <p>{error}</p>}
       </div>

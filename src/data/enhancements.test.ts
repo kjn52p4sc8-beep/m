@@ -121,7 +121,7 @@ it("roundtrips tasks and trash in a versioned backup without reviving deleted no
   await removeNote(n.id);
   const raw = JSON.parse(await (await exportBackup()).text());
   const parsed = parseBackup(raw);
-  expect(parsed.version).toBe(6);
+  expect(parsed.version).toBe(7);
   expect(parsed.notes[0].todos?.[0].done).toBe(true);
   await replaceAll({ ...parsed, attachments: [], recordings: [] });
   expect((await snapshot()).notes).toHaveLength(0);

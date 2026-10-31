@@ -401,3 +401,6 @@ body[data-scroll-lock] .editor-dock {
     grid-template-columns: repeat(3, minmax(44px, 1fr));
   }
 }
+.note-reminder-editor {border-top:1px solid var(--line);margin-top:12px;}
+.note-reminder-editor input {min-width:0;max-width:100%;width:100%;}
+.note-reminder-editor p {font-size:13px;overflow-wrap:anywhere;}

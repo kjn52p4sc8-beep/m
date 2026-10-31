@@ -1,3 +1,4 @@
+import {validateNoteReminder} from "./noteReminders";
 import { validateTodos } from "./todos";
 import { validateTrip, validateLoans } from "./finance";
 import { validateProductivity } from "./productivity";
@@ -21,6 +22,7 @@ const content = (n: Note, legacy = false) =>
     n.folderId,
     n.categoryId,
     ...(!legacy ? [n.backgroundColor] : []),
+    ...(n.noteReminder ? [[n.noteReminder.id,n.noteReminder.at]] : []),
   ]);
 export function writeDraft(note: Note, base: Note) {
   localStorage.setItem(
@@ -87,6 +89,7 @@ export function recoverDraft(initial: Note, folders: Folder[]) {
     )
       return null;
     validateTodos(n.todos);
+    validateNoteReminder(n.noteReminder);
     if (n.purpose !== undefined && n.purpose !== "quick-todos") return null;
     const folder = folders.find(
       (f) =>

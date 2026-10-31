@@ -1,3 +1,4 @@
+import NoteReminderEditor from "./NoteReminderEditor";
 import { flushSync } from "react-dom";
 import NoteColorPalette from "./NoteColorPalette";
 import ShareNote from "./ShareNote";
@@ -411,6 +412,7 @@ export default function Editor({
             onChange={(todos) => change({ todos })}
           />
         </div>
+        <NoteReminderEditor value={note.noteReminder} onChange={noteReminder=>change({noteReminder})}/>
         <details className="editor-organization">
           <summary>分類・タグ</summary>{" "}
           <div className="location-fields">

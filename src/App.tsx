@@ -7,7 +7,7 @@ import TodoReminder from "./components/TodoReminder";
 import type { TodoItem } from "./data/model";
 import { emptyTrip } from "./data/finance";
 import Tutorial from "./components/Tutorial";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { installViewportTracking } from "./platform/viewport";
 import { useScreenScroll } from "./platform/useScreenScroll";
 import KeyboardDismiss from "./components/KeyboardDismiss";
@@ -64,7 +64,7 @@ import PwaSettings from "./components/PwaSettings";
 import Editor from "./components/Editor";
 import Modal from "./components/Modal";
 import NoteList from "./components/NoteList";
-import { searchNotes } from "./data/search";
+import { createSearchIndex } from "./data/search";
 const icons: Record<string, typeof Wallet> = {
   money: Wallet,
   study: BookOpen,
@@ -285,7 +285,8 @@ export default function App() {
       Number(!!b.favorite) - Number(!!a.favorite) ||
       b.updatedAt.localeCompare(a.updatedAt),
   );
-  const searchResults = searchNotes(data.notes, query).filter(
+  const searchIndex = useMemo(()=>createSearchIndex(view === "search" ? data.notes : []),[data.notes,view]);
+  const searchResults = searchIndex(query).filter(
     (n) =>
       (!filterColor || (n.backgroundColor || "white") === filterColor) &&
       (!filterCategory || n.categoryId === filterCategory) &&
@@ -300,6 +301,7 @@ export default function App() {
   function noteList(notes: Note[], empty = "まだメモがありません") {
     return (
       <NoteList
+        key={`${view}:${filterColor}:${filterCategory}:${filterFolder}:${filterTag}`}
         notes={notes}
         query={view === "search" ? query : ""}
         categories={data.categories}
@@ -421,6 +423,8 @@ export default function App() {
             paused={loading || !!editing || todoDialog || !!editingTodo}
             notes={data.notes}
             onShow={() => go("todo")}
+            onOpen={id=>{const n=data.notes.find(n=>n.id===id);if(n)openNote(n);}}
+            onDelivered={()=>void refresh().catch(()=>setError("通知状態を更新できませんでした。"))}
           />
           {deletedUndo && (
             <div
@@ -873,7 +877,7 @@ export default function App() {
                     <p>
                       クラウド同期は未対応です。データはこの端末内に保存されます。
                     </p>
-                    <small>My Memo 0.6.1</small>
+                    <small>My Memo 0.7.0</small>
                   </section>
                 </>
               )}

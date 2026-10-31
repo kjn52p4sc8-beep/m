@@ -1,3 +1,4 @@
+import {validateNoteReminder, reminderCandidates} from "./noteReminders";
 import { validateNoteColor } from "./noteColors";
 import {
   validateTodos,
@@ -52,6 +53,7 @@ export class MemoDatabase extends Dexie {
       notes:
         "id, categoryId, folderId, updatedAt, deletedAt, lastOpenedAt, backgroundColor",
     });
+    this.version(8).stores({notes:"id, categoryId, folderId, updatedAt, deletedAt, lastOpenedAt, backgroundColor"});
   }
 }
 export const db = new MemoDatabase();
@@ -141,6 +143,7 @@ export async function moveFolder(id: string, direction: number) {
 }
 export async function saveNote(note: Note) {
   validateNoteColor(note.backgroundColor);
+  validateNoteReminder(note.noteReminder);
   validateTodos(note.todos);
   await db.transaction("rw", db.folders, db.notes, async () => {
     const folder = await db.folders.get(note.folderId);
@@ -151,6 +154,7 @@ export async function saveNote(note: Note) {
       throw Error("ごみ箱のメモは復元してから編集してください。");
     await db.notes.put({
       ...note,
+      noteReminder: note.noteReminder && {...note.noteReminder, notifiedAt: previous?.noteReminder?.id === note.noteReminder.id && previous.noteReminder.at === note.noteReminder.at ? previous.noteReminder.notifiedAt || note.noteReminder.notifiedAt : note.noteReminder.notifiedAt},
       lastOpenedAt: previous?.lastOpenedAt || note.lastOpenedAt,
       updatedAt:
         previous && previous.updatedAt > note.updatedAt
@@ -434,11 +438,10 @@ export async function claimDueReminders(
       item: TodoItem;
       key: string;
       at: number;
+      kind: "todo" | "note";
     }[] = [];
-    for (const { note, item } of taskRows(await db.notes.toArray())) {
-      const at = notificationTime(item);
-      if (at === null || at > now) continue;
-      const key = reminderKey(note.id, item);
+    for (const {note,item,at,key,kind} of reminderCandidates(await db.notes.toArray())) {
+      if (at > now || (kind === "note" && note.noteReminder?.notifiedAt)) continue;
       if (await db.reminderReceipts.get(key)) continue;
       if (!canDeliver()) throw Error("Reminder cancelled");
       await db.reminderReceipts.add({
@@ -446,7 +449,8 @@ export async function claimDueReminders(
         noteId: note.id,
         shownAt: new Date(now).toISOString(),
       });
-      result.push({ noteId: note.id, item, key, at });
+      if (kind === "note") await db.notes.update(note.id,{noteReminder:{...note.noteReminder!,notifiedAt:new Date(now).toISOString()}});
+      result.push({ noteId: note.id, item, key, at, kind });
       if (result.length === 5) break;
     }
     if (!canDeliver()) throw Error("Reminder cancelled");

@@ -231,7 +231,6 @@ test("captures pasted links and previews exactly the outgoing share/copy content
     .getByLabel("URL・テキスト", { exact: true })
     .fill("javascript:alert(1)");
   await page.getByRole("button", { name: "メモに保存", exact: true }).click();
-  await openEditorSections(page);
   await expect(page.getByRole("alert")).toContainText("URL形式");
   await page
     .getByLabel("URL・テキスト", { exact: true })

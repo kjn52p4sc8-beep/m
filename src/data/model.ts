@@ -50,6 +50,7 @@ export interface Note {
   favorite?: boolean;
   backgroundColor?: import("./noteColors").NoteColor;
   lastOpenedAt?: string;
+  noteReminder?: import("./noteReminders").NoteReminder;
 }
 export const categories: Category[] = [
   {

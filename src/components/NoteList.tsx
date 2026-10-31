@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import SwipeNote from "./SwipeNote";
 import { Pin } from "lucide-react";
 import type { Note, Category, Folder } from "../data/model";
@@ -31,9 +31,11 @@ export default function NoteList({
     id: string;
     side: "delete" | "pin";
   } | null>(null);
+  const [limit,setLimit]=useState(50);
+  useEffect(()=>setLimit(50),[query]);
   return notes.length ? (
     <div className="notes-list">
-      {notes.map((n) => {
+      {(searching ? notes.slice(0,limit) : notes).map((n) => {
         return (
           <SwipeNote
             key={n.id}
@@ -97,6 +99,7 @@ export default function NoteList({
           </SwipeNote>
         );
       })}
+      {searching && notes.length > limit && <button className="text-button" onClick={()=>setLimit(limit+50)}>さらに50件表示（残り{notes.length-limit}件）</button>}
     </div>
   ) : (
     <div className="empty">
