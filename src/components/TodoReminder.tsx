@@ -1,5 +1,5 @@
 import type { Note } from "../data/model";
-import {reminderCandidates} from "../data/noteReminders";
+import { reminderCandidates } from "../data/noteReminders";
 import { useEffect, useState } from "react";
 import { claimDueReminders } from "../data/repository";
 import { showSystemReminder, closeStaleReminders } from "../platform/reminders";
@@ -12,7 +12,7 @@ export default function TodoReminder({
 }: {
   paused: boolean;
   onShow: () => void;
-  onOpen: (id:string) => void;
+  onOpen: (id: string) => void;
   onDelivered: () => void;
   notes: Note[];
 }) {
@@ -21,9 +21,7 @@ export default function TodoReminder({
     >([]),
     [error, setError] = useState("");
   useEffect(() => {
-    const keys = new Set(
-      reminderCandidates(notes).map(t=>t.key),
-    );
+    const keys = new Set(reminderCandidates(notes).map((t) => t.key));
     setNotices((current) => current.filter((n) => keys.has(n.key)));
     void closeStaleReminders(keys);
   }, [notes]);
@@ -48,16 +46,17 @@ export default function TodoReminder({
                 await showSystemReminder(entry.item.text, entry.key);
             } catch {
               setError(
-                "端末通知を表示できませんでした。ここでToDoを確認できます。",
+                "端末通知を表示できませんでした。ここでメモ・ToDoを確認できます。",
               );
             }
           }
         }
       } catch (cause) {
-        if (cause instanceof Error && cause.message === "Reminder cancelled") return;
+        if (cause instanceof Error && cause.message === "Reminder cancelled")
+          return;
         if (active)
           setError(
-            "通知予定を確認できませんでした。ToDo一覧を確認してください。",
+            "通知予定を確認できませんでした。メモやToDoの通知設定を確認してください。",
           );
       } finally {
         busy = false;
@@ -79,7 +78,15 @@ export default function TodoReminder({
       <div role="status">
         <strong>通知時刻を過ぎたメモ・ToDo</strong>
         {notices.map((n) => (
-          <p key={n.key}>{n.kind === "note" ? <button className="text-button" onClick={()=>onOpen(n.noteId)}>{n.item.text}を開く</button> : n.item.text}</p>
+          <p key={n.key}>
+            {n.kind === "note" ? (
+              <button className="text-button" onClick={() => onOpen(n.noteId)}>
+                {n.item.text}を開く
+              </button>
+            ) : (
+              n.item.text
+            )}
+          </p>
         ))}
         {error && <p>{error}</p>}
       </div>

@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 // Existing feature regression journeys explicitly expand the relocated controls.
 export async function openEditorSections(page: Page) {
-  await page.locator(".editor").waitFor({state:"visible"});
+  await page.locator(".editor").waitFor({ state: "visible" });
   for (const selector of [".editor-organization", ".editor-extras"]) {
     const details = page.locator(selector);
     if (

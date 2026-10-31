@@ -24,6 +24,7 @@ export interface NoteTable {
   rows: string[][];
 }
 export interface VideoLink {
+  preview?: import("./linkPreview").LinkPreview;
   id: string;
   title: string;
   url: string;

@@ -1,4 +1,5 @@
-import {validateNoteReminder} from "./noteReminders";
+import { validateLinkPreview } from "./linkPreview";
+import { validateNoteReminder } from "./noteReminders";
 import { validateTodos } from "./todos";
 import { validateTrip, validateLoans } from "./finance";
 import { validateProductivity } from "./productivity";
@@ -23,7 +24,7 @@ import { validateTables } from "./tables";
 export const MAX_BACKUP_BYTES = 100 * 1024 * 1024;
 type Backup = {
   format: "my-memo";
-  version: 7;
+  version: 8;
   preferences?: { theme: "light" | "dark" | "system" };
   exportedAt: string;
   categories: Category[];
@@ -97,7 +98,7 @@ export function parseBackup(input: unknown): Backup {
   const root = obj(input);
   if (
     root.format !== "my-memo" ||
-    ![1, 2, 3, 4, 5, 6, 7].includes(root.version as number)
+    ![1, 2, 3, 4, 5, 6, 7, 8].includes(root.version as number)
   )
     bad();
   const categories = arr(root.categories, 100).map((v) => {
@@ -150,6 +151,9 @@ export function parseBackup(input: unknown): Backup {
           title: str(l.title),
           url: safeUrl(str(l.url)),
           tags: tags(l.tags),
+          ...(l.preview === undefined
+            ? {}
+            : { preview: validateLinkPreview(l.preview) }),
         };
       }),
     };
@@ -222,7 +226,7 @@ export function parseBackup(input: unknown): Backup {
   }
   return {
     format: "my-memo",
-    version: 7,
+    version: 8,
     preferences,
     exportedAt: date(root.exportedAt),
     categories,
@@ -242,7 +246,7 @@ export async function exportBackup() {
     recordings.push({ ...r, dataUrl: await blobToDataUrl(blob) });
   const text = JSON.stringify({
     format: "my-memo",
-    version: 7,
+    version: 8,
     preferences: { theme: readTheme() },
     exportedAt: new Date().toISOString(),
     ...data,

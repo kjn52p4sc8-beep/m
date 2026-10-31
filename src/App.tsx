@@ -1,3 +1,4 @@
+import { incomingShare } from "./data/linkPreview";
 import { flushSync } from "react-dom";
 import { noteColors, noteColorLabels, type NoteColor } from "./data/noteColors";
 import CaptureNote from "./components/CaptureNote";
@@ -138,13 +139,33 @@ export default function App() {
     await refresh();
     setTodoDialog(false);
   }
-  const [capture, setCapture] = useState(false);
+  const [receivedShare, setReceivedShare] = useState(() =>
+    incomingShare(location.search, location.pathname),
+  );
+  const [capture, setCapture] = useState(!!receivedShare);
+  function closeCapture() {
+    setCapture(false);
+    if (receivedShare) {
+      const url = new URL(location.href);
+      ["share", "title", "text", "url"].forEach((key) =>
+        url.searchParams.delete(key),
+      );
+      history.replaceState(
+        history.state,
+        "",
+        (url.pathname === "/share-target" ? "/" : url.pathname) +
+          url.search +
+          url.hash,
+      );
+      setReceivedShare(null);
+    }
+  }
   async function saveCapture(content: ReturnType<typeof captureContent>) {
     const folder = await quickFolder();
     const note = { ...newNote(folder), ...content };
     await saveNote(note);
     await refresh();
-    setCapture(false);
+    closeCapture();
     setEditingNew(false);
     setEditing(note);
   }
@@ -285,7 +306,10 @@ export default function App() {
       Number(!!b.favorite) - Number(!!a.favorite) ||
       b.updatedAt.localeCompare(a.updatedAt),
   );
-  const searchIndex = useMemo(()=>createSearchIndex(view === "search" ? data.notes : []),[data.notes,view]);
+  const searchIndex = useMemo(
+    () => createSearchIndex(view === "search" ? data.notes : []),
+    [data.notes, view],
+  );
   const searchResults = searchIndex(query).filter(
     (n) =>
       (!filterColor || (n.backgroundColor || "white") === filterColor) &&
@@ -420,11 +444,25 @@ export default function App() {
             </div>
           )}
           <TodoReminder
-            paused={loading || !!editing || todoDialog || !!editingTodo}
+            paused={
+              loading ||
+              !!editing ||
+              todoDialog ||
+              !!editingTodo ||
+              capture ||
+              typeDialog
+            }
             notes={data.notes}
             onShow={() => go("todo")}
-            onOpen={id=>{const n=data.notes.find(n=>n.id===id);if(n)openNote(n);}}
-            onDelivered={()=>void refresh().catch(()=>setError("通知状態を更新できませんでした。"))}
+            onOpen={(id) => {
+              const n = data.notes.find((n) => n.id === id);
+              if (n) openNote(n);
+            }}
+            onDelivered={() =>
+              void refresh().catch(() =>
+                setError("通知状態を更新できませんでした。"),
+              )
+            }
           />
           {deletedUndo && (
             <div
@@ -877,7 +915,7 @@ export default function App() {
                     <p>
                       クラウド同期は未対応です。データはこの端末内に保存されます。
                     </p>
-                    <small>My Memo 0.7.0</small>
+                    <small>My Memo 0.8.0</small>
                   </section>
                 </>
               )}
@@ -956,8 +994,16 @@ export default function App() {
           />
         </Modal>
       )}
-      {capture && (
-        <CaptureNote onSave={saveCapture} onClose={() => setCapture(false)} />
+      {capture && !loading && (
+        <CaptureNote
+          initial={receivedShare || undefined}
+          onSave={saveCapture}
+          onClose={closeCapture}
+          onOpenExisting={(note) => {
+            closeCapture();
+            openNote(note);
+          }}
+        />
       )}
       {typeDialog && (
         <Modal label="新規作成" onClose={() => setTypeDialog(false)}>

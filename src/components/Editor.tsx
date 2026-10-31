@@ -1,8 +1,10 @@
+import SavedLink from "./SavedLink";
+import { canonicalLink } from "../data/linkPreview";
 import NoteReminderEditor from "./NoteReminderEditor";
 import { flushSync } from "react-dom";
 import NoteColorPalette from "./NoteColorPalette";
 import ShareNote from "./ShareNote";
-import { serviceName } from "../data/sharing";
+import { captureContent } from "../data/sharing";
 import { useEffect, useRef, useState } from "react";
 import {
   Share2,
@@ -13,7 +15,6 @@ import {
   Check,
   Plus,
   X,
-  ExternalLink,
   Link as LinkIcon,
 } from "lucide-react";
 import type { Category, Folder, Note } from "../data/model";
@@ -212,6 +213,12 @@ export default function Editor({
     e.preventDefault();
     try {
       const valid = safeUrl(url);
+      if (
+        note.links.some((l) => canonicalLink(l.url) === canonicalLink(valid))
+      ) {
+        setLinkError("このURLはすでにこのメモに保存されています。");
+        return;
+      }
       change({
         links: [
           ...note.links,
@@ -334,6 +341,26 @@ export default function Editor({
           <textarea
             className="note-body-input"
             ref={bodyInput}
+            onPaste={(e) => {
+              try {
+                const incoming = captureContent(
+                  e.clipboardData.getData("text/plain"),
+                ).links;
+                const keys = new Set(
+                  current.current.links.map((l) => canonicalLink(l.url)),
+                );
+                const added = incoming.filter((l) => {
+                  const key = canonicalLink(l.url);
+                  if (keys.has(key)) return false;
+                  keys.add(key);
+                  return true;
+                });
+                if (added.length)
+                  change({ links: [...current.current.links, ...added] });
+              } catch {
+                /* Leave all pasted text in the native textarea even when it is not a valid URL. */
+              }
+            }}
             autoFocus={isNew && !initial.trip && !initial.loans}
             aria-label="本文"
             placeholder="メモを書く"
@@ -372,6 +399,30 @@ export default function Editor({
             }}
           />
         </div>
+        {!!note.links.length && (
+          <section className="saved-links" aria-label="保存したリンク">
+            {note.links.map((link) => (
+              <SavedLink
+                key={link.id}
+                link={link}
+                onPreview={(preview) =>
+                  change({
+                    links: current.current.links.map((l) =>
+                      l.id === link.id ? { ...l, preview } : l,
+                    ),
+                  })
+                }
+                onRemove={() =>
+                  change({
+                    links: current.current.links.filter(
+                      (l) => l.id !== link.id,
+                    ),
+                  })
+                }
+              />
+            ))}
+          </section>
+        )}
         <WritingTools
           note={note}
           selection={selection}
@@ -412,7 +463,10 @@ export default function Editor({
             onChange={(todos) => change({ todos })}
           />
         </div>
-        <NoteReminderEditor value={note.noteReminder} onChange={noteReminder=>change({noteReminder})}/>
+        <NoteReminderEditor
+          value={note.noteReminder}
+          onChange={(noteReminder) => change({ noteReminder })}
+        />
         <details className="editor-organization">
           <summary>分類・タグ</summary>{" "}
           <div className="location-fields">
@@ -508,35 +562,6 @@ export default function Editor({
                 追加
               </button>
             </div>
-            {note.links.map((link) => (
-              <div className="link-card" key={link.id}>
-                <a
-                  href={safeUrl(link.url)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <span>
-                    {link.title}
-                    <small>
-                      {serviceName(link.url)}{" "}
-                      {link.tags.map((t) => "#" + t).join(" ")}
-                    </small>
-                  </span>
-                  <ExternalLink size={17} />
-                </a>
-                <button
-                  className="icon-button"
-                  aria-label={`${link.title}を削除`}
-                  onClick={() =>
-                    change({
-                      links: note.links.filter((l) => l.id !== link.id),
-                    })
-                  }
-                >
-                  <X size={17} />
-                </button>
-              </div>
-            ))}
             {!note.links.length && !linkForm && (
               <p className="muted">見返したい動画やサイトを、メモと一緒に。</p>
             )}

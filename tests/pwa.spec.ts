@@ -11,8 +11,8 @@ test("production PWA boots and edits a saved note offline", async ({
   await page.reload();
   await page.getByRole("button", { name: "クイックメモを作成" }).click();
   await openEditorSections(page);
-  await page.getByRole("button", {name:"メモの背景色を変更"}).click();
-  await page.getByRole("button", {name:"背景色：黄色",exact:true}).click();
+  await page.getByRole("button", { name: "メモの背景色を変更" }).click();
+  await page.getByRole("button", { name: "背景色：黄色", exact: true }).click();
   await page
     .getByRole("textbox", { name: "タイトル", exact: true })
     .fill("オフラインメモ");
@@ -336,5 +336,40 @@ test("quick ToDo deadlines and captured links survive an offline restart", async
   await expect(page.getByRole("link", { name: /Instagram/ })).toHaveAttribute(
     "href",
     "https://www.instagram.com/p/example/",
+  );
+});
+
+test("installed cache accepts a shared URL offline and preserves it after restart", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/");
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();
+  const manifest = await (
+    await page.request.get("/manifest.webmanifest")
+  ).json();
+  expect(manifest.share_target).toMatchObject({
+    action: "/share-target",
+    method: "GET",
+    params: { title: "title", text: "text", url: "url" },
+  });
+  await context.setOffline(true);
+  await page.goto(
+    "/share-target?title=オフライン共有&url=https%3A%2F%2Fexample.com%2Fsaved",
+  );
+  await page.getByRole("button", { name: "メモに保存", exact: true }).click();
+  await expect(page.getByLabel("タイトル", { exact: true })).toHaveValue(
+    "オフライン共有",
+  );
+  await expect(page.getByRole("link", { name: /example.com/ })).toHaveAttribute(
+    "href",
+    "https://example.com/saved",
+  );
+  await page.getByRole("button", { name: "戻る", exact: true }).click();
+  await page.reload();
+  await page.locator(".note-row").click();
+  await expect(page.getByLabel("本文", { exact: true })).toHaveValue(
+    "https://example.com/saved",
   );
 });

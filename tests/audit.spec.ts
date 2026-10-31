@@ -24,7 +24,6 @@ test("folder validation, reorder boundaries and recovery when a category has no 
       .click();
   }
   await page.getByRole("button", { name: "メモ作成", exact: true }).click();
-  await openEditorSections(page);
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "フォルダを作成", exact: true })
@@ -79,6 +78,10 @@ test("note location, link error recovery, safe opening, removal and search clear
   await popup.waitForLoadState();
   expect(await popup.evaluate(() => window.opener === null)).toBe(true);
   await popup.close();
+  page.once("dialog", (d) => d.dismiss());
+  await page.getByRole("button", { name: "安全なリンクを削除" }).click();
+  await expect(page.getByRole("link", { name: /安全なリンク/ })).toHaveCount(1);
+  page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "安全なリンクを削除" }).click();
   await expect(page.getByRole("link", { name: /安全なリンク/ })).toHaveCount(0);
   await page.getByRole("button", { name: "戻る", exact: true }).click();

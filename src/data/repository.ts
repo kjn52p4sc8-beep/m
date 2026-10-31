@@ -1,4 +1,5 @@
-import {validateNoteReminder, reminderCandidates} from "./noteReminders";
+import { canonicalLink, validateLinkPreview } from "./linkPreview";
+import { validateNoteReminder, reminderCandidates } from "./noteReminders";
 import { validateNoteColor } from "./noteColors";
 import {
   validateTodos,
@@ -53,7 +54,14 @@ export class MemoDatabase extends Dexie {
       notes:
         "id, categoryId, folderId, updatedAt, deletedAt, lastOpenedAt, backgroundColor",
     });
-    this.version(8).stores({notes:"id, categoryId, folderId, updatedAt, deletedAt, lastOpenedAt, backgroundColor"});
+    this.version(8).stores({
+      notes:
+        "id, categoryId, folderId, updatedAt, deletedAt, lastOpenedAt, backgroundColor",
+    });
+    this.version(9).stores({
+      notes:
+        "id, categoryId, folderId, updatedAt, deletedAt, lastOpenedAt, backgroundColor",
+    });
   }
 }
 export const db = new MemoDatabase();
@@ -142,6 +150,7 @@ export async function moveFolder(id: string, direction: number) {
   });
 }
 export async function saveNote(note: Note) {
+  note.links.forEach((link) => validateLinkPreview(link.preview));
   validateNoteColor(note.backgroundColor);
   validateNoteReminder(note.noteReminder);
   validateTodos(note.todos);
@@ -154,7 +163,14 @@ export async function saveNote(note: Note) {
       throw Error("ごみ箱のメモは復元してから編集してください。");
     await db.notes.put({
       ...note,
-      noteReminder: note.noteReminder && {...note.noteReminder, notifiedAt: previous?.noteReminder?.id === note.noteReminder.id && previous.noteReminder.at === note.noteReminder.at ? previous.noteReminder.notifiedAt || note.noteReminder.notifiedAt : note.noteReminder.notifiedAt},
+      noteReminder: note.noteReminder && {
+        ...note.noteReminder,
+        notifiedAt:
+          previous?.noteReminder?.id === note.noteReminder.id &&
+          previous.noteReminder.at === note.noteReminder.at
+            ? previous.noteReminder.notifiedAt || note.noteReminder.notifiedAt
+            : note.noteReminder.notifiedAt,
+      },
       lastOpenedAt: previous?.lastOpenedAt || note.lastOpenedAt,
       updatedAt:
         previous && previous.updatedAt > note.updatedAt
@@ -440,8 +456,11 @@ export async function claimDueReminders(
       at: number;
       kind: "todo" | "note";
     }[] = [];
-    for (const {note,item,at,key,kind} of reminderCandidates(await db.notes.toArray())) {
-      if (at > now || (kind === "note" && note.noteReminder?.notifiedAt)) continue;
+    for (const { note, item, at, key, kind } of reminderCandidates(
+      await db.notes.toArray(),
+    )) {
+      if (at > now || (kind === "note" && note.noteReminder?.notifiedAt))
+        continue;
       if (await db.reminderReceipts.get(key)) continue;
       if (!canDeliver()) throw Error("Reminder cancelled");
       await db.reminderReceipts.add({
@@ -449,7 +468,13 @@ export async function claimDueReminders(
         noteId: note.id,
         shownAt: new Date(now).toISOString(),
       });
-      if (kind === "note") await db.notes.update(note.id,{noteReminder:{...note.noteReminder!,notifiedAt:new Date(now).toISOString()}});
+      if (kind === "note")
+        await db.notes.update(note.id, {
+          noteReminder: {
+            ...note.noteReminder!,
+            notifiedAt: new Date(now).toISOString(),
+          },
+        });
       result.push({ noteId: note.id, item, key, at, kind });
       if (result.length === 5) break;
     }
@@ -464,4 +489,15 @@ export async function togglePinned(id: string) {
     if (!note || note.deletedAt) throw Error("メモが見つかりません。");
     await db.notes.update(id, { favorite: !note.favorite });
   });
+}
+
+export async function findDuplicateNotes(urls: string[], excludeId?: string) {
+  const keys = new Set(urls.map(canonicalLink));
+  if (!keys.size) return [];
+  return (await db.notes.toArray()).filter(
+    (note) =>
+      !note.deletedAt &&
+      note.id !== excludeId &&
+      note.links.some((link) => keys.has(canonicalLink(link.url))),
+  );
 }

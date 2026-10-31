@@ -401,6 +401,63 @@ body[data-scroll-lock] .editor-dock {
     grid-template-columns: repeat(3, minmax(44px, 1fr));
   }
 }
-.note-reminder-editor {border-top:1px solid var(--line);margin-top:12px;}
-.note-reminder-editor input {min-width:0;max-width:100%;width:100%;}
-.note-reminder-editor p {font-size:13px;overflow-wrap:anywhere;}
+.note-reminder-editor {
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+}
+.note-reminder-editor input {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+}
+.note-reminder-editor p {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.saved-links {
+  margin: 8px 0 16px;
+  min-width: 0;
+}
+.saved-link {
+  border-bottom: 1px solid var(--border);
+  padding: 4px 0;
+  min-width: 0;
+}
+.saved-link .link-card {
+  margin: 0;
+  box-shadow: none;
+}
+.saved-link-url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+  max-width: 100%;
+}
+.saved-link .link-card a,
+.saved-link .link-card a span {
+  min-width: 0;
+}
+.preview-title {
+  font-size: 14px;
+  margin: 4px 12px;
+  overflow-wrap: anywhere;
+}
+.link-thumbnail {
+  width: 160px;
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  margin: 4px 12px;
+}
+.link-preview-options summary,
+.capture-form details summary {
+  min-height: 44px;
+  padding: 12px 4px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.link-preview-options .fine-print {
+  margin: 0 4px;
+}
