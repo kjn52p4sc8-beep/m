@@ -203,3 +203,26 @@ test("checklist shortcut focuses the new item and ToDo remains one tap away", as
     page.getByRole("checkbox", { name: "すぐ追加するを完了", exact: true }),
   ).toBeChecked();
 });
+
+test("search icon and clear return focus in one tap while preserving color filters", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "検索", exact: true }).click();
+  const input = page.getByLabel("検索キーワード");
+  await expect(input).toBeFocused();
+  await input.fill("元の検索語");
+  await page.getByText("色で絞り込む", { exact: true }).click();
+  const blue = page.getByRole("button", { name: "青のメモ", exact: true });
+  await blue.click();
+  await page.getByRole("button", { name: "検索", exact: true }).click();
+  await expect(input).toBeFocused();
+  await expect(input).toHaveValue("元の検索語");
+  await expect(blue).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "検索をクリア", exact: true }).click();
+  await expect(input).toBeFocused();
+  await expect(input).toHaveValue("");
+  await expect(blue).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.type("new query");
+  await expect(input).toHaveValue("new query");
+});

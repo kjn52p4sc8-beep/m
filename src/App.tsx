@@ -149,6 +149,7 @@ export default function App() {
     setEditing(note);
   }
   const createLock = useRef(false);
+  const searchInput = useRef<HTMLInputElement>(null);
   useEffect(installViewportTracking, []);
   useScreenScroll(
     editing
@@ -390,7 +391,10 @@ export default function App() {
               <button
                 className="icon-button"
                 aria-label="検索"
-                onClick={() => flushSync(() => go("search"))}
+                onClick={() => {
+                  flushSync(() => go("search"));
+                  searchInput.current?.focus({ preventScroll: true });
+                }}
               >
                 <Search size={22} />
               </button>
@@ -630,6 +634,7 @@ export default function App() {
                   <label className="search-input">
                     <Search size={21} />
                     <input
+                      ref={searchInput}
                       autoFocus
                       type="search"
                       enterKeyHint="search"
@@ -642,7 +647,10 @@ export default function App() {
                       <button
                         aria-label="検索をクリア"
                         className="icon-button"
-                        onClick={() => setQuery("")}
+                        onClick={() => {
+                          setQuery("");
+                          searchInput.current?.focus({ preventScroll: true });
+                        }}
                       >
                         <X size={18} />
                       </button>
@@ -865,7 +873,7 @@ export default function App() {
                     <p>
                       クラウド同期は未対応です。データはこの端末内に保存されます。
                     </p>
-                    <small>My Memo 0.6.0</small>
+                    <small>My Memo 0.6.1</small>
                   </section>
                 </>
               )}
