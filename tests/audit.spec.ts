@@ -1,3 +1,4 @@
+import { settingsSection, selectTheme } from "./ui-helpers";
 import { openEditorSections, openFolders, openCreateMenu } from "./ui-helpers";
 import { test, expect } from "@playwright/test";
 test("folder validation, reorder boundaries and recovery when a category has no folders", async ({
@@ -113,6 +114,7 @@ test("settings buttons report actual storage support and invalid backup errors",
 }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "設定を開く" }).click();
+  await settingsSection(page, "バックアップ");
   await page.evaluate(() =>
     Object.defineProperty(navigator.storage, "persist", {
       value: async () => false,
@@ -135,12 +137,13 @@ test("settings buttons report actual storage support and invalid backup errors",
     buffer: Buffer.from("{"),
   });
   await expect(page.getByRole("alert")).toContainText("JSONを読み込めません");
+  await settingsSection(page, "オフライン・更新");
   await page
     .getByRole("button", { name: "オフライン準備・更新を確認" })
     .click();
   await expect(page.getByRole("status")).toContainText("本番ビルド");
   for (const theme of ["ダーク", "ライト", "端末に合わせる"])
-    await page.getByRole("button", { name: theme, exact: true }).click();
+    await selectTheme(page, theme);
 });
 
 test("annotation controls, secondary touches and save-error retry", async ({

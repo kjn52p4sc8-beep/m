@@ -21,6 +21,9 @@ export default function TodoPanel({
   onEdit?: (note: Note, item: TodoItem) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [pendingChecks, setPendingChecks] = useState<Record<string, boolean>>(
+    {},
+  );
   const tasks = taskRows(notes);
   const pending = tasks.filter((t) => !t.item.done);
   if (compact && !pending.length) return null;
@@ -32,14 +35,23 @@ export default function TodoPanel({
           <input
             type="checkbox"
             disabled={busy}
-            checked={item.done}
+            checked={
+              pendingChecks[JSON.stringify([note.id, item.id])] ?? item.done
+            }
             aria-label={`${item.text}を完了`}
             onChange={async (e) => {
               const done = e.target.checked;
+              const key = JSON.stringify([note.id, item.id]);
+              setPendingChecks((value) => ({ ...value, [key]: done }));
               setBusy(true);
               try {
                 await onToggle(note.id, item.id, done);
               } finally {
+                setPendingChecks((value) => {
+                  const next = { ...value };
+                  delete next[key];
+                  return next;
+                });
                 setBusy(false);
               }
             }}

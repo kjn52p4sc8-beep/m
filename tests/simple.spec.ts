@@ -1,3 +1,4 @@
+import { settingsSection, selectTheme } from "./ui-helpers";
 import { test, expect, type Page } from "@playwright/test";
 async function create(page: Page, title: string, body = "残す本文") {
   await page
@@ -95,7 +96,7 @@ test("background colors take two taps, persist with autosave and filter without 
   await page.getByRole("button", { name: "戻る", exact: true }).click();
   await expect(page.locator(".note-row")).toHaveCount(0);
 });
-test("right swipe pins, left swipe trashes, undo and settings restore preserve color", async ({
+test("right swipe colors, long press pins, left swipe trashes, undo and settings restore preserve color", async ({
   page,
 }) => {
   await page.goto("/");
@@ -105,6 +106,16 @@ test("right swipe pins, left swipe trashes, undo and settings restore preserve c
   await page.getByRole("button", { name: "戻る", exact: true }).click();
   await swipe(page, 110);
   await expect(page.getByLabel("本文", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "色変更", exact: true }).click();
+  await page.getByRole("button", { name: "背景色：紫", exact: true }).click();
+  const row = page.locator(".swipe-surface").first();
+  const rect = (await row.boundingBox())!;
+  await page.mouse.move(rect.x + 80, rect.y + 30);
+  await page.mouse.down();
+  await expect(
+    page.getByRole("dialog", { name: "ピン留めするメモの操作" }),
+  ).toBeVisible();
+  await page.mouse.up();
   await page.getByRole("button", { name: "ピン留め", exact: true }).click();
   await create(page, "新しいメモ");
   await page.getByRole("button", { name: "戻る", exact: true }).click();
@@ -139,7 +150,7 @@ test("320px palette, dark colors and keyboard toolbar remain accessible", async 
   await page.setViewportSize({ width: 320, height: 700 });
   await page.goto("/");
   await page.getByRole("button", { name: "設定を開く" }).click();
-  await page.getByRole("button", { name: "ダーク", exact: true }).click();
+  await selectTheme(page, "ダーク");
   await page.getByRole("button", { name: "メモ", exact: true }).click();
   await create(page, "色の確認");
   for (const color of ["白", "黄色", "ピンク", "緑", "青", "紫"]) {

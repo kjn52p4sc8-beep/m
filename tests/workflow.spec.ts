@@ -194,7 +194,7 @@ test("denied notification permission is explained and settings can be turned off
   await page.getByRole("button", { name: "追加", exact: true }).click();
   await expect(page.locator(".todo-full")).toContainText("通知なしにもできる");
 });
-test("captures pasted links and previews exactly the outgoing share/copy content", async ({
+test("captures pasted links and shares the latest title and body directly", async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -242,22 +242,10 @@ test("captures pasted links and previews exactly the outgoing share/copy content
     "https://youtu.be/example",
   );
   await page.getByRole("button", { name: "メモの文章を共有" }).click();
-  await expect(page.getByLabel("送信する文章")).toHaveValue(
-    /https:\/\/youtu.be\/example/,
-  );
-  await page.getByLabel("送信する文章").fill("この文章だけを送ります");
-  await page.getByRole("button", { name: "共有メニューを開く" }).click();
   expect(await page.evaluate(() => (window as any).outgoing)).toEqual([
-    { text: "この文章だけを送ります" },
+    { text: "【YouTube】\n\nあとで見る https://youtu.be/example" },
   ]);
-  await page.getByRole("button", { name: "文章をコピー", exact: true }).click();
-  expect(await page.evaluate(() => (window as any).copied)).toBe(
-    "この文章だけを送ります",
-  );
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "閉じる", exact: true })
-    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("button", { name: "戻る", exact: true }).click();
   await page.reload();
   await page.locator(".note-row").first().click();
@@ -291,17 +279,12 @@ test("unavailable share/copy and cancelled sharing keep the memo and its preview
   await openEditorSections(page);
   await page.getByRole("button", { name: "メモの文章を共有" }).click();
   await expect(
-    page.getByRole("button", { name: "共有メニューを開く" }),
-  ).toHaveCount(0);
-  await page.getByRole("button", { name: "文章をコピー", exact: true }).click();
-  await expect(page.getByRole("dialog").getByRole("status")).toContainText(
-    "長押し",
+    page.getByRole("status").filter({ hasText: "コピーできません" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("コピー用の文章")).toHaveValue(
+    "【共有の確認】\n\nそのまま残す本文",
   );
-  await expect(page.getByLabel("送信する文章")).toHaveValue(/そのまま残す本文/);
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "閉じる", exact: true })
-    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.evaluate(() =>
     Object.defineProperty(navigator, "share", {
       value: async () => {
@@ -311,9 +294,8 @@ test("unavailable share/copy and cancelled sharing keep the memo and its preview
     }),
   );
   await page.getByRole("button", { name: "メモの文章を共有" }).click();
-  await page.getByRole("button", { name: "共有メニューを開く" }).click();
-  await expect(page.getByRole("dialog").getByRole("status")).toContainText(
-    "キャンセル",
+  await expect(page.getByText(/キャンセル|共有を開けません/)).toHaveCount(0);
+  await expect(page.getByLabel("本文", { exact: true })).toHaveValue(
+    "そのまま残す本文",
   );
-  await expect(page.getByLabel("送信する文章")).toHaveValue(/そのまま残す本文/);
 });

@@ -1,41 +1,68 @@
-import { useState, useEffect } from "react";
+import type { NoteColor } from "../data/noteColors";
+import { useState, useEffect, useRef } from "react";
 import SwipeNote from "./SwipeNote";
 import { Pin } from "lucide-react";
-import type { Note, Category, Folder } from "../data/model";
+import type { Note } from "../data/model";
 import Highlight from "./Highlight";
 import { excerpt } from "../data/highlight";
 export default function NoteList({
   notes,
   query = "",
-  categories,
-  folders,
   onOpen,
   onDelete,
   onPin,
-  onCreate,
+  onColor,
+  initialLimit = 50,
+  onLimit,
   searching,
   empty,
 }: {
   notes: Note[];
   query?: string;
-  categories: Category[];
-  folders: Folder[];
   onOpen: (note: Note) => void;
   onDelete: (note: Note) => Promise<void>;
   onPin: (note: Note) => Promise<void>;
-  onCreate: () => void;
+  onColor: (note: Note, color: NoteColor) => Promise<void>;
+  initialLimit?: number;
+  onLimit: (limit: number) => void;
   searching: boolean;
   empty: string;
 }) {
   const [opened, setOpened] = useState<{
     id: string;
-    side: "delete" | "pin";
+    side: "delete" | "color";
   } | null>(null);
-  const [limit, setLimit] = useState(50);
-  useEffect(() => setLimit(50), [query]);
+  const [limit, setLimit] = useState(initialLimit);
+  const lastQuery = useRef(query),
+    sentinel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (lastQuery.current !== query) {
+      lastQuery.current = query;
+      setLimit(50);
+    }
+  }, [query]);
+  useEffect(() => onLimit(limit), [limit, onLimit]);
+  useEffect(() => {
+    if (
+      searching ||
+      limit >= notes.length ||
+      !sentinel.current ||
+      typeof IntersectionObserver === "undefined"
+    )
+      return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting))
+          setLimit((current) => Math.min(current + 50, notes.length));
+      },
+      { rootMargin: "300px" },
+    );
+    observer.observe(sentinel.current);
+    return () => observer.disconnect();
+  }, [searching, limit, notes.length]);
   return notes.length ? (
     <div className="notes-list">
-      {(searching ? notes.slice(0, limit) : notes).map((n) => {
+      {notes.slice(0, limit).map((n) => {
         return (
           <SwipeNote
             key={n.id}
@@ -45,6 +72,7 @@ export default function NoteList({
             color={n.backgroundColor || "white"}
             pinned={!!n.favorite}
             onPin={() => onPin(n)}
+            onColor={(color) => onColor(n, color)}
             onDelete={() => onDelete(n)}
           >
             <button className="note-row" onClick={() => onOpen(n)}>
@@ -99,16 +127,18 @@ export default function NoteList({
           </SwipeNote>
         );
       })}
-      {searching && notes.length > limit && (
-        <button className="text-button" onClick={() => setLimit(limit + 50)}>
-          さらに50件表示（残り{notes.length - limit}件）
-        </button>
+      {notes.length > limit && (
+        <div ref={sentinel}>
+          <button className="text-button" onClick={() => setLimit(limit + 50)}>
+            さらに50件表示（残り{notes.length - limit}件）
+          </button>
+        </div>
       )}
     </div>
   ) : (
     <div className="empty">
       <p>{empty}</p>
-      {!searching && <p className="muted">右下の＋から書き始める</p>}
+      {!searching && <p className="muted">下の＋から書き始める</p>}
     </div>
   );
 }

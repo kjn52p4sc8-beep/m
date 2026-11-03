@@ -1,3 +1,5 @@
+import ScheduleNotifier from "./components/ScheduleNotifier";
+import SettingsView from "./components/SettingsView";
 import { incomingShare } from "./data/linkPreview";
 import { flushSync } from "react-dom";
 import { noteColors, noteColorLabels, type NoteColor } from "./data/noteColors";
@@ -8,7 +10,7 @@ import TodoReminder from "./components/TodoReminder";
 import type { TodoItem } from "./data/model";
 import { emptyTrip } from "./data/finance";
 import Tutorial from "./components/Tutorial";
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, lazy, Suspense } from "react";
 import { installViewportTracking } from "./platform/viewport";
 import { useScreenScroll } from "./platform/useScreenScroll";
 import KeyboardDismiss from "./components/KeyboardDismiss";
@@ -40,6 +42,7 @@ import { type Category, type Folder, type Note } from "./data/model";
 import {
   markOpened,
   togglePinned,
+  setNoteColor,
   addQuickTodo,
   saveTodoItem,
   deleteTodoItem,
@@ -60,19 +63,19 @@ import {
 import TodoPanel from "./components/TodoPanel";
 import TrashView from "./components/TrashView";
 import { readTheme } from "./data/backup";
-import DataSettings from "./components/DataSettings";
-import PwaSettings from "./components/PwaSettings";
 import Editor from "./components/Editor";
 import Modal from "./components/Modal";
 import NoteList from "./components/NoteList";
 import { createSearchIndex } from "./data/search";
+const ScheduleManager = lazy(() => import("./components/ScheduleManager"));
 const icons: Record<string, typeof Wallet> = {
   money: Wallet,
   study: BookOpen,
   work: BriefcaseBusiness,
   life: Sprout,
 };
-type View = "home" | "category" | "search" | "settings" | "todo" | "trash";
+type View =
+  "home" | "category" | "search" | "settings" | "todo" | "trash" | "schedules";
 export default function App() {
   const [data, setData] = useState<{
       categories: Category[];
@@ -103,6 +106,36 @@ export default function App() {
       }
     }),
     [newDialog, setNewDialog] = useState(false);
+  const [notificationNote, setNotificationNote] = useState(() =>
+    new URLSearchParams(location.search).get("note"),
+  );
+  useEffect(() => {
+    const message = (e: MessageEvent) => {
+      if (
+        e.data?.type === "OPEN_NOTE" &&
+        typeof e.data.id === "string" &&
+        e.data.id.length <= 200
+      )
+        setNotificationNote(e.data.id);
+    };
+    const local = (e: Event) => {
+      const id = (e as CustomEvent).detail;
+      if (typeof id === "string" && id.length <= 200) setNotificationNote(id);
+    };
+    try {
+      navigator.serviceWorker?.addEventListener("message", message);
+    } catch {}
+    window.addEventListener("my-memo-open-note", local);
+    return () => {
+      try {
+        navigator.serviceWorker?.removeEventListener("message", message);
+      } catch {}
+      window.removeEventListener("my-memo-open-note", local);
+    };
+  }, []);
+  const [scheduleTarget, setScheduleTarget] = useState<
+    { noteId: string; todoId: string } | undefined
+  >();
   const [typeDialog, setTypeDialog] = useState(false),
     [sharingInfo, setSharingInfo] = useState(false),
     [tutorial, setTutorial] = useState(false);
@@ -169,6 +202,22 @@ export default function App() {
     setEditingNew(false);
     setEditing(note);
   }
+  useEffect(() => {
+    if (!notificationNote || loading || editing || capture) return;
+    const note = data.notes.find((n) => n.id === notificationNote);
+    if (note) {
+      setEditingNew(false);
+      setEditing(note);
+    } else setError("通知の対象メモが見つかりません。ごみ箱をご確認ください。");
+    setNotificationNote(null);
+    const url = new URL(location.href);
+    url.searchParams.delete("note");
+    history.replaceState(
+      history.state,
+      "",
+      url.pathname + url.search + url.hash,
+    );
+  }, [notificationNote, loading, editing, capture, data.notes]);
   const createLock = useRef(false);
   const searchInput = useRef<HTMLInputElement>(null);
   useEffect(installViewportTracking, []);
@@ -205,7 +254,9 @@ export default function App() {
     media.addEventListener("change", apply);
     try {
       localStorage.setItem("my-memo-theme", theme);
-    } catch {}
+    } catch {
+      setError("テーマ設定を保存できませんでした。");
+    }
     return () => media.removeEventListener("change", apply);
   }, [theme]);
   async function action(fn: () => Promise<unknown>) {
@@ -301,10 +352,14 @@ export default function App() {
       (n) =>
         n.categoryId === categoryId && (!folderId || n.folderId === folderId),
     );
-  const homeNotes = [...data.notes].sort(
-    (a, b) =>
-      Number(!!b.favorite) - Number(!!a.favorite) ||
-      b.updatedAt.localeCompare(a.updatedAt),
+  const homeNotes = useMemo(
+    () =>
+      [...data.notes].sort(
+        (a, b) =>
+          Number(!!b.favorite) - Number(!!a.favorite) ||
+          b.updatedAt.localeCompare(a.updatedAt),
+      ),
+    [data.notes],
   );
   const searchIndex = useMemo(
     () => createSearchIndex(view === "search" ? data.notes : []),
@@ -322,18 +377,23 @@ export default function App() {
     setEditing(note);
     void action(() => markOpened(note.id));
   }
+  const listSizes = useRef(new Map<string, number>());
   function noteList(notes: Note[], empty = "まだメモがありません") {
+    const listKey = `${view}:${view === "category" ? categoryId + ":" + folderId : ""}:${filterColor}:${filterCategory}:${filterFolder}:${filterTag}`;
     return (
       <NoteList
-        key={`${view}:${filterColor}:${filterCategory}:${filterFolder}:${filterTag}`}
+        key={listKey}
+        initialLimit={listSizes.current.get(listKey) || 50}
+        onLimit={(limit) => {
+          if (listSizes.current.size > 64) listSizes.current.clear();
+          listSizes.current.set(listKey, limit);
+        }}
         notes={notes}
         query={view === "search" ? query : ""}
-        categories={data.categories}
-        folders={data.folders}
         onOpen={openNote}
         onDelete={(n) => trashNote(n.id)}
         onPin={(n) => action(() => togglePinned(n.id))}
-        onCreate={() => void quickCreate()}
+        onColor={(n, color) => action(() => setNoteColor(n.id, color))}
         searching={view === "search"}
         empty={empty}
       />
@@ -443,6 +503,24 @@ export default function App() {
               </button>
             </div>
           )}
+          <ScheduleNotifier
+            paused={
+              loading ||
+              !!editing ||
+              todoDialog ||
+              !!editingTodo ||
+              capture ||
+              typeDialog
+            }
+            onOpen={(id) => {
+              const n = data.notes.find((n) => n.id === id);
+              if (n) openNote(n);
+            }}
+            onManage={() => {
+              setScheduleTarget(undefined);
+              go("schedules");
+            }}
+          />
           <TodoReminder
             paused={
               loading ||
@@ -808,7 +886,18 @@ export default function App() {
               )}
               {view === "todo" && (
                 <>
-                  <h1>ToDo</h1>
+                  <div className="section-heading">
+                    <h1>ToDo</h1>
+                    <button
+                      className="text-button"
+                      onClick={() => {
+                        setScheduleTarget(undefined);
+                        go("schedules");
+                      }}
+                    >
+                      通知・タイマー
+                    </button>
+                  </div>
                   <TodoForm onSave={createTodo} />
                   <TodoPanel
                     notes={data.notes}
@@ -819,6 +908,19 @@ export default function App() {
                   />
                 </>
               )}
+              {view === "schedules" && (
+                <Suspense fallback={<p role="status">通知設定を読み込み中…</p>}>
+                  <ScheduleManager
+                    notes={data.notes}
+                    target={scheduleTarget}
+                    onBack={() => go("todo")}
+                    onOpen={(id) => {
+                      const n = data.notes.find((n) => n.id === id);
+                      if (n) openNote(n);
+                    }}
+                  />
+                </Suspense>
+              )}
               {view === "trash" && (
                 <TrashView
                   notes={data.trash}
@@ -828,95 +930,24 @@ export default function App() {
               )}
               {view === "settings" && (
                 <>
-                  <h1>設定</h1>
-                  <button
-                    className="text-button"
-                    aria-label="作成メニューを開く"
-                    onClick={() => setTypeDialog(true)}
-                  >
-                    旅行・貸し借り・URLを作成
-                  </button>
-                  <details className="organization-menu">
-                    <summary>フォルダを管理</summary>
-                    {data.categories.map((c) => (
-                      <button
-                        key={c.id}
-                        className="text-button"
-                        onClick={() => openCategory(c)}
-                      >
-                        {c.name}
-                      </button>
-                    ))}
-                  </details>
-                  <div className="settings-actions">
-                    <button
-                      className="text-button"
-                      onClick={() => setTutorial(!tutorial)}
-                    >
-                      使い方を見る
-                    </button>
-                    <button
-                      className="text-button"
-                      onClick={() => setSharingInfo(true)}
-                    >
-                      共有・ログインについて
-                    </button>
-                  </div>
-                  {tutorial && <Tutorial onClose={() => setTutorial(false)} />}
-                  <section className="settings-card">
-                    <h2>
-                      <Moon size={20} />
-                      表示テーマ
-                    </h2>
-                    <div className="theme-options">
-                      {[
-                        ["system", "端末に合わせる"],
-                        ["light", "ライト"],
-                        ["dark", "ダーク"],
-                      ].map(([id, label]) => (
-                        <button
-                          key={id}
-                          className={theme === id ? "active" : ""}
-                          onClick={() => setTheme(id)}
-                        >
-                          {id === "light" ? (
-                            <Sun size={18} />
-                          ) : (
-                            <Moon size={18} />
-                          )}{" "}
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  </section>
-                  <button
-                    className="trash-link text-button"
-                    onClick={() => go("trash")}
-                  >
-                    <Trash2 size={19} />
-                    ごみ箱（{data.trash.length}）
-                  </button>
-                  <DataSettings
+                  <SettingsView
+                    theme={theme}
+                    onTheme={setTheme}
+                    categories={data.categories}
+                    trashCount={data.trash.length}
+                    onCategory={openCategory}
+                    onTrash={() => go("trash")}
+                    onCreate={() => setTypeDialog(true)}
+                    onCapture={() => setCapture(true)}
+                    onTutorial={() => setTutorial(true)}
+                    onSharing={() => setSharingInfo(true)}
                     onRestored={async () => {
                       setDeletedUndo(null);
                       setTheme(readTheme());
                       await refresh();
                     }}
                   />
-                  <PwaSettings />
-                  <section className="settings-card">
-                    <h2>
-                      <ShieldCheck size={20} />
-                      データについて
-                    </h2>
-                    <p>
-                      メモはこのブラウザのIndexedDBに保存されます。通常の再読み込み後も残りますが、サイトデータの削除やプライベートブラウズの終了で失われる場合があります。
-                    </p>
-                    <p>
-                      クラウド同期は未対応です。データはこの端末内に保存されます。
-                    </p>
-                    <small>My Memo 0.8.0</small>
-                  </section>
+                  {tutorial && <Tutorial onClose={() => setTutorial(false)} />}
                 </>
               )}
             </>
@@ -979,6 +1010,19 @@ export default function App() {
               閉じる
             </button>
           </div>
+          <button
+            className="text-button"
+            onClick={() => {
+              setScheduleTarget({
+                noteId: editingTodo.note.id,
+                todoId: editingTodo.item.id,
+              });
+              setEditingTodo(null);
+              go("schedules");
+            }}
+          >
+            タイマー・繰り返し通知を設定
+          </button>
           <TodoForm
             initial={editingTodo.item}
             onSave={async (item) => {

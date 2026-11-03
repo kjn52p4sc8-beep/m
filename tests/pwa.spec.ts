@@ -1,5 +1,36 @@
 import { openEditorSections, openFolders, openCreateMenu } from "./ui-helpers";
 import { test, expect } from "@playwright/test";
+test("lazy notification screen and paused timer survive an offline restart", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/");
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();
+  await context.setOffline(true);
+  await page.getByRole("button", { name: "ToDo", exact: true }).click();
+  await page
+    .getByRole("button", { name: "通知・タイマー", exact: true })
+    .click();
+  await page.getByRole("button", { name: "通知を追加", exact: true }).click();
+  await page.getByLabel("通知名", { exact: true }).fill("オフラインのタイマー");
+  await page.getByLabel("タイマーの分").selectOption("1");
+  await page.getByRole("button", { name: "保存して開始", exact: true }).click();
+  await page.getByRole("button", { name: "一時停止", exact: true }).click();
+  await page.reload();
+  await page.getByRole("button", { name: "ToDo", exact: true }).click();
+  await page
+    .getByRole("button", { name: "通知・タイマー", exact: true })
+    .click();
+  await expect(page.locator(".schedule-row")).toContainText(
+    "オフラインのタイマー",
+  );
+  await expect(page.locator(".schedule-row")).toContainText("一時停止");
+  await page.getByRole("button", { name: "再開", exact: true }).click();
+  await expect(page.locator(".schedule-row")).toContainText("実行中");
+  await page.getByRole("button", { name: "キャンセル", exact: true }).click();
+  await expect(page.locator(".schedule-row")).toContainText("停止中");
+});
 test("production PWA boots and edits a saved note offline", async ({
   page,
   context,
@@ -79,6 +110,9 @@ test("offline readiness check remains usable without network", async ({
   await context.setOffline(true);
   await page.getByRole("button", { name: "設定を開く" }).click();
   await page
+    .getByRole("button", { name: "オフライン・更新", exact: true })
+    .click();
+  await page
     .getByRole("button", { name: "オフライン準備・更新を確認" })
     .click();
   await expect(page.getByRole("status")).toContainText(
@@ -144,6 +178,9 @@ test("new service worker shows an update button and preserves data after activat
       .fill("更新で残るメモ");
     await page.getByRole("button", { name: "戻る", exact: true }).click();
     await page.getByRole("button", { name: "設定を開く" }).click();
+    await page
+      .getByRole("button", { name: "オフライン・更新", exact: true })
+      .click();
     revision = 2;
     await page
       .getByRole("button", { name: "オフライン準備・更新を確認" })
@@ -242,6 +279,9 @@ test("unsupported secure browsers get Safari guidance and can reload without los
   await page.getByRole("button", { name: "戻る", exact: true }).click();
   await page.getByRole("button", { name: "設定を開く" }).click();
   await page
+    .getByRole("button", { name: "オフライン・更新", exact: true })
+    .click();
+  await page
     .getByRole("button", { name: "オフライン準備・更新を確認" })
     .click();
   await expect(page.getByRole("status")).toContainText("アプリ内ブラウザ");
@@ -291,6 +331,9 @@ test("browser security restrictions show recovery guidance rather than an HTTPS 
   );
   await page.goto("/");
   await page.getByRole("button", { name: "設定を開く" }).click();
+  await page
+    .getByRole("button", { name: "オフライン・更新", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "オフライン準備・更新を確認" })
     .click();

@@ -37,6 +37,7 @@ test("image compression, preview, JSON backup and atomic restore", async ({
   await expect(page.getByRole("alert")).toContainText("一致しません");
   await page.getByRole("button", { name: "戻る", exact: true }).click();
   await page.getByRole("button", { name: "設定を開く" }).click();
+  await page.getByRole("button", { name: "バックアップ", exact: true }).click();
   const downloaded = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "バックアップを保存", exact: true })
@@ -61,6 +62,7 @@ test("image compression, preview, JSON backup and atomic restore", async ({
   page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "メモを削除", exact: true }).click();
   await page.getByRole("button", { name: "設定を開く" }).click();
+  await page.getByRole("button", { name: "バックアップ", exact: true }).click();
   await page.getByLabel("バックアップを復元", { exact: true }).setInputFiles({
     name: "backup.json",
     mimeType: "application/json",
@@ -162,6 +164,7 @@ test("text and handwriting annotations remain editable after reload and backup",
   await page.getByRole("button", { name: "画像を閉じる" }).click();
   await page.getByRole("button", { name: "戻る", exact: true }).click();
   await page.getByRole("button", { name: "設定を開く" }).click();
+  await page.getByRole("button", { name: "バックアップ", exact: true }).click();
   const downloaded = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "バックアップを保存", exact: true })

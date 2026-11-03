@@ -146,15 +146,13 @@ it("backs up reminder settings and keeps original metadata through trash/restore
 it("upgrades v5 without rewriting saved notes", async () => {
   const name = "upgrade-todos-v6",
     old = new Dexie(name);
-  old
-    .version(5)
-    .stores({
-      categories: "id",
-      folders: "id, categoryId, order, deletedAt",
-      notes: "id, categoryId, folderId, updatedAt, deletedAt, lastOpenedAt",
-      attachments: "id, noteId, createdAt",
-      recordings: "id, noteId, createdAt",
-    });
+  old.version(5).stores({
+    categories: "id",
+    folders: "id, categoryId, order, deletedAt",
+    notes: "id, categoryId, folderId, updatedAt, deletedAt, lastOpenedAt",
+    attachments: "id, noteId, createdAt",
+    recordings: "id, noteId, createdAt",
+  });
   const note = {
     id: "old",
     body: "残す本文",
@@ -202,6 +200,11 @@ it("captures URLs safely, identifies real services, and exports only previewed t
       },
     ],
   });
-  expect(text).toContain("☐ 読む");
+  expect(text).not.toContain("☐ 読む");
+  expect(text).toBe(`【${result.title}】\n\n${result.body}`);
+  expect(sharedText({ title: " ", body: " \n" })).toBe("");
+  expect(sharedText({ title: "", body: "1\n2" })).toBe(
+    "【無題のメモ】\n\n1\n2",
+  );
   expect(text).not.toContain("共有しない相手");
 });

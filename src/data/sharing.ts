@@ -67,15 +67,7 @@ export function captureContent(
     links,
   };
 }
-export function sharedText(note: Note) {
-  return [
-    note.title,
-    note.body,
-    (note.todos || [])
-      .map((t) => `${t.done ? "☑" : "☐"} ${t.text}`)
-      .join("\n"),
-    note.links.map((l) => `${l.title}\n${safeUrl(l.url)}`).join("\n\n"),
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+export function sharedText<T extends Pick<Note, "title" | "body">>(note: T) {
+  if (!note.title.trim() && !note.body.trim()) return "";
+  return `【${note.title.trim() || "無題のメモ"}】\n\n${note.body}`;
 }

@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { characterCount, literalMatches, replaceLiteral } from "./text";
+import { characterCount } from "./text";
 import { validateTables } from "./tables";
 import { validateAudio, MAX_AUDIO_BYTES } from "./audio";
 import {
@@ -24,14 +24,8 @@ beforeEach(async () => {
   await initialize();
 });
 afterEach(() => vi.unstubAllGlobals());
-it("counts graphemes and replaces literal strings without regex or replacement expansion", () => {
+it("counts graphemes", () => {
   expect(characterCount("家族👨‍👩‍👧‍👦e\u0301")).toBe(4);
-  expect(literalMatches("a.a a.a", "a.a")).toEqual([
-    [0, 3],
-    [4, 7],
-  ]);
-  expect(replaceLiteral("a.a a.a", "a.a", "$&")).toBe("$& $&");
-  expect(replaceLiteral("本文", "", "消す")).toBe("本文");
 });
 it("validates rectangular tables and preserves text as plain strings", () => {
   expect(

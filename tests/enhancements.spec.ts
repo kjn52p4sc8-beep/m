@@ -1,3 +1,4 @@
+import { settingsSection, selectTheme } from "./ui-helpers";
 import { openEditorSections, openFolders, openCreateMenu } from "./ui-helpers";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
@@ -125,7 +126,8 @@ test("backup restores theme, tasks and trash; old v1 imports keep existing theme
   page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "メモを削除", exact: true }).click();
   await page.getByRole("button", { name: "設定を開く" }).click();
-  await page.getByRole("button", { name: "ダーク", exact: true }).click();
+  await selectTheme(page, "ダーク");
+  await settingsSection(page, "バックアップ");
   const downloaded = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "バックアップを保存", exact: true })
@@ -134,7 +136,8 @@ test("backup restores theme, tasks and trash; old v1 imports keep existing theme
   const data = JSON.parse(bytes.toString());
   expect(data.notes[0].deletedAt).toBeTruthy();
   expect(data.notes[0].todos[0].text).toBe("残す項目");
-  await page.getByRole("button", { name: "ライト", exact: true }).click();
+  await selectTheme(page, "ライト");
+  await settingsSection(page, "バックアップ");
   await page.getByLabel("バックアップを復元", { exact: true }).setInputFiles({
     name: "backup.json",
     mimeType: "application/json",

@@ -53,6 +53,7 @@ test("travel budget, exchange records, loan repayment and backup survive reload"
   await expect(page.locator(".loan-status")).toHaveText("完済");
   await page.getByRole("button", { name: "戻る", exact: true }).click();
   await page.getByRole("button", { name: "設定を開く" }).click();
+  await page.getByRole("button", { name: "バックアップ", exact: true }).click();
   const downloadWait = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "バックアップを保存", exact: true })

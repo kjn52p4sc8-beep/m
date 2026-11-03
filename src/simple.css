@@ -33,7 +33,7 @@
 .simple-ui main {
   max-width: none;
   padding: 0 max(16px, var(--safe-right, 0px))
-    calc(92px + var(--safe-bottom, 0px)) max(16px, var(--safe-left, 0px));
+    calc(148px + var(--safe-bottom, 0px)) max(16px, var(--safe-left, 0px));
 }
 .simple-ui .notes-list {
   display: block;
@@ -141,7 +141,7 @@
   color: var(--accent);
   font-size: 15px;
 }
-.swipe-pin {
+.swipe-color {
   position: absolute;
   inset: 0 auto 0 0;
   width: 88px;
@@ -177,7 +177,9 @@
   background: var(--surface);
   border-top: 1px solid var(--line);
 }
-.simple-bottom .text-button {
+.simple-bottom > .text-button {
+  flex: 1;
+  justify-content: center;
   min-height: 44px;
   gap: 6px;
   padding: 8px 10px;
@@ -186,7 +188,10 @@
   font-weight: 700;
 }
 .simple-create {
-  margin-left: auto;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
   border-radius: 50%;
   width: 48px;
   height: 48px;
@@ -339,7 +344,7 @@ body[data-scroll-lock] .editor-dock {
 }
 .note-color-options {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(54px, 1fr));
   gap: 6px;
   padding: 6px 0 10px;
 }
@@ -460,4 +465,199 @@ body[data-scroll-lock] .editor-dock {
 }
 .link-preview-options .fine-print {
   margin: 0 4px;
+}
+.share-feedback {
+  position: fixed;
+  bottom: calc(70px + var(--safe-bottom, 0px));
+  left: max(16px, var(--safe-left, 0px));
+  right: max(16px, var(--safe-right, 0px));
+  z-index: 60;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 14px;
+}
+.share-feedback textarea {
+  width: 100%;
+  max-height: 140px;
+}
+
+.memo-color-red {
+  --memo-bg: #fbe9e6;
+}
+.dark .memo-color-red {
+  --memo-bg: #402724;
+}
+.swipe-surface {
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+.note-actions {
+  display: grid;
+  gap: 4px;
+}
+.note-actions button {
+  justify-content: flex-start;
+  min-height: 48px;
+}
+.settings-list h1 {
+  font-size: 24px;
+  margin: 8px 0 12px;
+}
+.settings-list h2 {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  margin: 16px 0 2px;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  width: 100%;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  padding: 8px 2px;
+  color: var(--text);
+  background: transparent;
+}
+.settings-row > span {
+  flex: 1;
+}
+.settings-row small {
+  color: var(--muted);
+  font-size: 14px;
+}
+.settings-row svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.settings-list .settings-card {
+  border: 0;
+  padding: 8px 0;
+  box-shadow: none;
+}
+.version-label {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 12px 0;
+}
+.schedule-manager h1 {
+  font-size: 24px;
+}
+.schedule-manager fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.duration-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+.duration-picker label {
+  display: grid;
+  text-align: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.duration-picker select {
+  min-height: 64px;
+  font-size: 26px;
+  text-align: center;
+}
+.schedule-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.schedule-times label {
+  display: grid;
+  gap: 6px;
+  flex: 1 1 120px;
+  min-width: 0;
+}
+.schedule-times input {
+  min-width: 0;
+  width: 100%;
+}
+.weekday-options {
+  display: flex;
+  justify-content: space-between;
+  margin: 10px 0;
+  flex-wrap: wrap;
+}
+.weekday-options label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 44px;
+  min-width: 40px;
+}
+.schedule-row {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.schedule-row p {
+  margin: 4px 0;
+  font-variant-numeric: tabular-nums;
+}
+.schedule-row small {
+  color: var(--muted);
+}
+.schedule-manager .recent-timers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.swipe-surface.dragging {
+  will-change: transform;
+}
+@media (max-width: 767px) {
+  [data-keyboard="open"] .share-feedback {
+    top: calc(var(--visible-top) + 56px);
+    bottom: auto;
+    max-height: calc(var(--visible-height) - 160px);
+    overflow-y: auto;
+  }
+}
+.simple-bottom::before {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  height: 64px;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+.simple-bottom .simple-create {
+  z-index: 1;
+}
+.schedule-manager .section-heading {
+  margin: 4px 0 8px;
+}
+.schedule-manager h1 {
+  margin: 8px 0;
+}
+.schedule-manager .check-target {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+  height: auto;
+  min-height: 44px;
+}
+.schedule-manager .check-target input {
+  width: 20px;
+  height: 20px;
+}
+.schedule-manager details summary svg {
+  display: inline;
+  vertical-align: middle;
 }

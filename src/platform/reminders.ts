@@ -31,7 +31,11 @@ export async function requestReminderPermission() {
     return "端末通知の許可を取得できませんでした。アプリ内のお知らせは利用できます。";
   }
 }
-export async function showSystemReminder(text: string, key: string) {
+export async function showSystemReminder(
+  text: string,
+  key: string,
+  noteId?: string,
+) {
   if (reminderPermissionHelp() || Notification.permission !== "granted") return;
   const reg =
     "serviceWorker" in navigator
@@ -41,24 +45,36 @@ export async function showSystemReminder(text: string, key: string) {
     await reg.showNotification("My Memoのお知らせ", {
       body: text.slice(0, 200),
       tag: key,
+      data: { noteId },
     });
   else {
     const n = new Notification("My Memoのお知らせ", {
       body: text.slice(0, 200),
       tag: key,
+      data: { noteId },
     });
     visibleNotifications.set(key, n);
     n.onclick = () => {
       window.focus();
+      if (noteId)
+        window.dispatchEvent(
+          new CustomEvent("my-memo-open-note", { detail: noteId }),
+        );
       n.close();
       visibleNotifications.delete(key);
     };
   }
 }
 
-export async function closeStaleReminders(keys: Set<string>) {
+export async function closeStaleReminders(
+  keys: Set<string>,
+  scheduled = false,
+) {
   for (const [key, n] of visibleNotifications) {
-    if (!keys.has(key)) {
+    if (
+      key.startsWith("my-memo-reminder:schedule:") === scheduled &&
+      !keys.has(key)
+    ) {
       n.close();
       visibleNotifications.delete(key);
     }
@@ -69,7 +85,12 @@ export async function closeStaleReminders(keys: Set<string>) {
         ? await navigator.serviceWorker.getRegistration()
         : undefined;
     for (const n of (await reg?.getNotifications()) || []) {
-      if (n.tag.startsWith("my-memo-reminder:") && !keys.has(n.tag)) n.close();
+      if (
+        n.tag.startsWith("my-memo-reminder:") &&
+        n.tag.startsWith("my-memo-reminder:schedule:") === scheduled &&
+        !keys.has(n.tag)
+      )
+        n.close();
     }
   } catch {
     /* In-app notices remain available even when the browser blocks notification access. */

@@ -3,11 +3,10 @@ import { canonicalLink } from "../data/linkPreview";
 import NoteReminderEditor from "./NoteReminderEditor";
 import { flushSync } from "react-dom";
 import NoteColorPalette from "./NoteColorPalette";
-import ShareNote from "./ShareNote";
+import ShareAction from "./ShareAction";
 import { captureContent } from "../data/sharing";
 import { useEffect, useRef, useState } from "react";
 import {
-  Share2,
   Palette,
   SquareCheck,
   ArrowLeft,
@@ -28,7 +27,6 @@ import {
   type PenColor,
 } from "../data/productivity";
 import Checklist from "./Checklist";
-import TextTools from "./TextTools";
 import TableEditor from "./TableEditor";
 import Recordings from "./Recordings";
 import { writeDraft, clearSavedDraft, recoverDraft } from "../data/drafts";
@@ -63,7 +61,6 @@ export default function Editor({
     [url, setUrl] = useState(""),
     [linkTitle, setLinkTitle] = useState(""),
     [linkTags, setLinkTags] = useState("");
-  const [sharing, setSharing] = useState(false);
   const [palette, setPalette] = useState(false);
   const [selection, setSelection] = useState<[number, number]>([0, 0]);
   const [pen, setPen] = useState<PenColor>(() => {
@@ -78,7 +75,6 @@ export default function Editor({
   const beforeSelection = useRef<[number, number] | undefined>(undefined);
   const colorLayer = useRef<HTMLPreElement>(null);
   const base = useRef(initial),
-    titleInput = useRef<HTMLInputElement>(null),
     bodyInput = useRef<HTMLTextAreaElement>(null),
     current = useRef(note),
     dirty = useRef(!!recovered || isNew),
@@ -248,7 +244,6 @@ export default function Editor({
           onClose={() => setPalette(false)}
         />
       )}
-      {sharing && <ShareNote note={note} onClose={() => setSharing(false)} />}
       <div className="editor-toolbar">
         <button
           onClick={() => void close()}
@@ -315,7 +310,6 @@ export default function Editor({
       <fieldset disabled={busy} className="editor-paper">
         <input
           className="note-title-input"
-          ref={titleInput}
           aria-label="タイトル"
           placeholder="タイトルを入力"
           value={note.title}
@@ -448,14 +442,6 @@ export default function Editor({
               setUndo(undo.slice(0, -1));
             }
           }}
-        />
-        <TextTools
-          title={note.title}
-          body={note.body}
-          bodyColors={note.bodyColors || []}
-          titleRef={titleInput}
-          bodyRef={bodyInput}
-          onChange={change}
         />
         <div className="editor-checklist" hidden={!(note.todos || []).length}>
           <Checklist
@@ -646,15 +632,7 @@ export default function Editor({
         >
           <SquareCheck size={21} />
         </button>
-        <button
-          type="button"
-          className="icon-button"
-          aria-label="メモの文章を共有"
-          disabled={busy || audioBusy || imageBusy}
-          onClick={() => setSharing(true)}
-        >
-          <Share2 size={18} />
-        </button>
+        <ShareAction note={note} disabled={busy || audioBusy || imageBusy} />
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+import { settingsSection, selectTheme } from "./ui-helpers";
 import { openEditorSections, openFolders, openCreateMenu } from "./ui-helpers";
 import { test, expect } from "@playwright/test";
 test("folder CRUD, note autosave, reload, links and cross-category search", async ({
@@ -110,7 +111,7 @@ test("responsive layout and dark mode", async ({ page }) => {
     ),
   ).toBeTruthy();
   await page.getByRole("button", { name: "設定を開く" }).click();
-  await page.getByRole("button", { name: "ダーク", exact: true }).click();
+  await selectTheme(page, "ダーク");
   await expect(page.locator("html")).toHaveClass("dark");
   await page.reload();
   await expect(page.locator("html")).toHaveClass("dark");

@@ -15,7 +15,7 @@ export async function openEditorSections(page: Page) {
 }
 export async function openFolders(page: Page, name: string) {
   await page.getByRole("button", { name: "設定を開く" }).click();
-  await page.getByText("フォルダを管理", { exact: true }).click();
+  await page.getByRole("button", { name: "フォルダ管理", exact: true }).click();
   await page
     .locator(".organization-menu")
     .getByRole("button", { name, exact: true })
@@ -24,4 +24,16 @@ export async function openFolders(page: Page, name: string) {
 export async function openCreateMenu(page: Page) {
   await page.getByRole("button", { name: "設定を開く" }).click();
   await page.getByRole("button", { name: "作成メニューを開く" }).click();
+}
+
+export async function settingsSection(page: Page, name: string) {
+  if (
+    await page.getByRole("button", { name: "設定に戻る", exact: true }).count()
+  )
+    await page.getByRole("button", { name: "設定に戻る", exact: true }).click();
+  await page.getByRole("button", { name, exact: true }).click();
+}
+export async function selectTheme(page: Page, name: string) {
+  await settingsSection(page, "テーマを選択");
+  await page.getByRole("button", { name, exact: true }).click();
 }

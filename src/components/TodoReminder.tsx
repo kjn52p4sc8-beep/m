@@ -43,7 +43,11 @@ export default function TodoReminder({
           for (const entry of due) {
             try {
               if (document.visibilityState === "visible")
-                await showSystemReminder(entry.item.text, entry.key);
+                await showSystemReminder(
+                  entry.item.text,
+                  entry.key,
+                  entry.noteId,
+                );
             } catch {
               setError(
                 "端末通知を表示できませんでした。ここでメモ・ToDoを確認できます。",

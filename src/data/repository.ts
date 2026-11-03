@@ -1,6 +1,13 @@
+import {
+  validateSchedule,
+  startSchedule,
+  pauseSchedule,
+  nextOccurrence,
+  type Schedule,
+} from "./schedules";
 import { canonicalLink, validateLinkPreview } from "./linkPreview";
 import { validateNoteReminder, reminderCandidates } from "./noteReminders";
-import { validateNoteColor } from "./noteColors";
+import { validateNoteColor, type NoteColor } from "./noteColors";
 import {
   validateTodos,
   taskRows,
@@ -8,7 +15,7 @@ import {
   reminderKey,
 } from "./todos";
 import type { TodoItem } from "./model";
-import Dexie, { type Table } from "dexie";
+import Dexie, { liveQuery, type Table } from "dexie";
 import {
   categories,
   folderNames,
@@ -21,6 +28,7 @@ import {
 } from "./model";
 import { validateAudio, MAX_AUDIO_SECONDS } from "./audio";
 export class MemoDatabase extends Dexie {
+  schedules!: Table<Schedule, string>;
   categories!: Table<Category, string>;
   folders!: Table<Folder, string>;
   notes!: Table<Note, string>;
@@ -62,6 +70,11 @@ export class MemoDatabase extends Dexie {
       notes:
         "id, categoryId, folderId, updatedAt, deletedAt, lastOpenedAt, backgroundColor",
     });
+    this.version(10).stores({
+      notes:
+        "id, categoryId, folderId, updatedAt, deletedAt, lastOpenedAt, backgroundColor",
+    });
+    this.version(11).stores({ schedules: "id, nextAt, noteId, updatedAt" });
   }
 }
 export const db = new MemoDatabase();
@@ -123,13 +136,15 @@ export async function renameFolder(id: string, name: string) {
   await db.folders.update(id, { name: name.trim() });
 }
 export async function deleteFolder(id: string) {
-  await db.transaction("rw", db.folders, db.notes, async () => {
+  await db.transaction("rw", db.folders, db.notes, db.schedules, async () => {
     const deletedAt = new Date().toISOString();
     await db.notes
       .where("folderId")
       .equals(id)
       .filter((n) => !n.deletedAt)
       .modify({ deletedAt });
+    for (const note of await db.notes.where("folderId").equals(id).toArray())
+      await stopSchedulesForNote(note.id);
     await db.folders.update(id, { deletedAt });
   });
 }
@@ -154,13 +169,14 @@ export async function saveNote(note: Note) {
   validateNoteColor(note.backgroundColor);
   validateNoteReminder(note.noteReminder);
   validateTodos(note.todos);
-  await db.transaction("rw", db.folders, db.notes, async () => {
+  await db.transaction("rw", db.folders, db.notes, db.schedules, async () => {
     const folder = await db.folders.get(note.folderId);
     if (!folder || folder.deletedAt || folder.categoryId !== note.categoryId)
       throw Error("保存先フォルダを選択してください。");
     const previous = await db.notes.get(note.id);
     if (previous?.deletedAt || note.deletedAt)
       throw Error("ごみ箱のメモは復元してから編集してください。");
+    await stopInvalidSchedules(note);
     await db.notes.put({
       ...note,
       noteReminder: note.noteReminder && {
@@ -180,7 +196,10 @@ export async function saveNote(note: Note) {
   });
 }
 export async function removeNote(id: string) {
-  await db.notes.update(id, { deletedAt: new Date().toISOString() });
+  await db.transaction("rw", db.notes, db.schedules, async () => {
+    await db.notes.update(id, { deletedAt: new Date().toISOString() });
+    await stopSchedulesForNote(id);
+  });
 }
 export async function restoreNote(id: string) {
   await db.transaction("rw", db.notes, db.folders, async () => {
@@ -206,12 +225,14 @@ export async function permanentlyDeleteNote(id: string) {
     db.attachments,
     db.recordings,
     db.reminderReceipts,
+    db.schedules,
     async () => {
       if (!(await db.notes.get(id))?.deletedAt)
         throw Error("完全削除はごみ箱から行ってください。");
       await db.attachments.where("noteId").equals(id).delete();
       await db.recordings.where("noteId").equals(id).delete();
       await db.reminderReceipts.where("noteId").equals(id).delete();
+      await db.schedules.where("noteId").equals(id).delete();
       await db.notes.delete(id);
     },
   );
@@ -221,9 +242,10 @@ export async function toggleTodo(
   itemId: string,
   done: boolean,
 ) {
-  await db.transaction("rw", db.notes, async () => {
+  await db.transaction("rw", db.notes, db.schedules, async () => {
     const note = await db.notes.get(noteId);
     if (!note || note.deletedAt) throw Error("メモが見つかりません。");
+    if (done) await stopSchedulesForNote(noteId, itemId);
     await db.notes.update(noteId, {
       todos: (note.todos || []).map((t) =>
         t.id === itemId ? { ...t, done } : t,
@@ -313,22 +335,28 @@ export async function saveAnnotations(id: string, annotations: Annotation[]) {
 export async function backupSnapshot() {
   return db.transaction(
     "r",
-    db.categories,
-    db.folders,
-    db.notes,
-    db.attachments,
-    db.recordings,
+    [
+      db.categories,
+      db.folders,
+      db.notes,
+      db.attachments,
+      db.recordings,
+      db.schedules,
+    ],
     async () => ({
       categories: await db.categories.toArray(),
       folders: await db.folders.toArray(),
       notes: await db.notes.toArray(),
       attachments: await db.attachments.toArray(),
       recordings: await db.recordings.toArray(),
+      schedules: await db.schedules.toArray(),
     }),
   );
 }
 export async function replaceAll(
-  data: Awaited<ReturnType<typeof backupSnapshot>>,
+  data: Omit<Awaited<ReturnType<typeof backupSnapshot>>, "schedules"> & {
+    schedules?: Schedule[];
+  },
 ) {
   await db.transaction(
     "rw",
@@ -339,6 +367,7 @@ export async function replaceAll(
       db.attachments,
       db.recordings,
       db.reminderReceipts,
+      db.schedules,
     ],
     async () => {
       await Promise.all([
@@ -348,12 +377,14 @@ export async function replaceAll(
         db.attachments.clear(),
         db.recordings.clear(),
         db.reminderReceipts.clear(),
+        db.schedules.clear(),
       ]);
       await db.categories.bulkAdd(data.categories);
       await db.folders.bulkAdd(data.folders);
       await db.notes.bulkAdd(data.notes);
       await db.attachments.bulkAdd(data.attachments);
       await db.recordings.bulkAdd(data.recordings);
+      await db.schedules.bulkAdd((data.schedules || []).map(validateSchedule));
     },
   );
 }
@@ -396,10 +427,11 @@ export async function markOpened(id: string) {
 
 export async function saveTodoItem(noteId: string, item: TodoItem) {
   validateTodos([item]);
-  await db.transaction("rw", db.notes, async () => {
+  await db.transaction("rw", db.notes, db.schedules, async () => {
     const note = await db.notes.get(noteId);
     if (!note || note.deletedAt || !note.todos?.some((t) => t.id === item.id))
       throw Error("ToDoが見つかりません。");
+    if (item.done) await stopSchedulesForNote(noteId, item.id);
     await db.notes.update(noteId, {
       todos: note.todos.map((t) => (t.id === item.id ? item : t)),
       updatedAt: new Date().toISOString(),
@@ -407,9 +439,10 @@ export async function saveTodoItem(noteId: string, item: TodoItem) {
   });
 }
 export async function deleteTodoItem(noteId: string, itemId: string) {
-  await db.transaction("rw", db.notes, async () => {
+  await db.transaction("rw", db.notes, db.schedules, async () => {
     const n = await db.notes.get(noteId);
     if (!n || n.deletedAt) throw Error("ToDoが見つかりません。");
+    await stopSchedulesForNote(noteId, itemId, true);
     await db.notes.update(noteId, {
       todos: (n.todos || []).filter((t) => t.id !== itemId),
       updatedAt: new Date().toISOString(),
@@ -484,7 +517,7 @@ export async function claimDueReminders(
 }
 
 export async function togglePinned(id: string) {
-  await db.transaction("rw", db.notes, async () => {
+  await db.transaction("rw", db.notes, db.schedules, async () => {
     const note = await db.notes.get(id);
     if (!note || note.deletedAt) throw Error("メモが見つかりません。");
     await db.notes.update(id, { favorite: !note.favorite });
@@ -500,4 +533,142 @@ export async function findDuplicateNotes(urls: string[], excludeId?: string) {
       note.id !== excludeId &&
       note.links.some((link) => keys.has(canonicalLink(link.url))),
   );
+}
+
+export async function setNoteColor(id: string, color: NoteColor) {
+  validateNoteColor(color);
+  await db.transaction("rw", db.notes, async () => {
+    const n = await db.notes.get(id);
+    if (!n || n.deletedAt) throw Error("メモが見つかりません。");
+    await db.notes.update(id, {
+      backgroundColor: color,
+      updatedAt: new Date().toISOString(),
+    });
+  });
+}
+
+async function stopSchedulesForNote(
+  noteId: string,
+  todoId?: string,
+  detach = false,
+) {
+  const rows = await db.schedules.where("noteId").equals(noteId).toArray();
+  for (const row of rows)
+    if (!todoId || row.todoId === todoId)
+      await db.schedules.update(row.id, {
+        enabled: false,
+        nextAt: undefined,
+        remainingMs: undefined,
+        lastFiredAt: undefined,
+        ...(detach ? { todoId: undefined } : {}),
+      });
+}
+async function stopInvalidSchedules(note: Note) {
+  for (const row of await db.schedules
+    .where("noteId")
+    .equals(note.id)
+    .toArray())
+    if (row.todoId && !note.todos?.some((t) => t.id === row.todoId && !t.done))
+      await db.schedules.update(row.id, {
+        enabled: false,
+        nextAt: undefined,
+        remainingMs: undefined,
+        lastFiredAt: undefined,
+        ...(!note.todos?.some((t) => t.id === row.todoId)
+          ? { todoId: undefined }
+          : {}),
+      });
+}
+export function listSchedules() {
+  return db.schedules.orderBy("updatedAt").reverse().toArray();
+}
+export async function saveSchedule(value: Schedule) {
+  const s = validateSchedule(value);
+  await db.transaction("rw", db.schedules, db.notes, async () => {
+    if (s.enabled && s.noteId) {
+      const n = await db.notes.get(s.noteId);
+      if (
+        !n ||
+        n.deletedAt ||
+        (s.todoId && !n.todos?.some((t) => t.id === s.todoId && !t.done))
+      )
+        throw Error("未完了のToDoを選んでください。");
+    }
+    await db.schedules.put(s);
+  });
+}
+export async function controlSchedule(
+  id: string,
+  control: "start" | "pause" | "cancel",
+  now = Date.now(),
+) {
+  await db.transaction("rw", db.schedules, db.notes, async () => {
+    const s = await db.schedules.get(id);
+    if (!s) throw Error("通知が見つかりません。");
+    const next =
+      control === "start"
+        ? startSchedule(s, now)
+        : control === "pause"
+          ? pauseSchedule(s, now)
+          : {
+              ...s,
+              enabled: false,
+              nextAt: undefined,
+              remainingMs: undefined,
+              updatedAt: new Date(now).toISOString(),
+            };
+    await saveSchedule({ ...next, lastFiredAt: undefined });
+  });
+}
+export async function deleteSchedule(id: string) {
+  await db.schedules.delete(id);
+}
+export async function claimSchedules(
+  now = Date.now(),
+  canDeliver = () => true,
+) {
+  return db.transaction("rw", db.schedules, db.notes, async () => {
+    const due: Schedule[] = [];
+    for (const s of await db.schedules
+      .where("nextAt")
+      .belowOrEqual(now)
+      .toArray()) {
+      if (!s.enabled) continue;
+      if (s.noteId) {
+        const n = await db.notes.get(s.noteId);
+        if (
+          !n ||
+          n.deletedAt ||
+          (s.todoId && !n.todos?.some((t) => t.id === s.todoId && !t.done))
+        ) {
+          await db.schedules.update(s.id, {
+            enabled: false,
+            nextAt: undefined,
+          });
+          continue;
+        }
+      }
+      if (s.lastFiredAt === s.nextAt) continue;
+      const nextAt = nextOccurrence(s, now);
+      await db.schedules.update(s.id, {
+        lastFiredAt: s.nextAt,
+        nextAt,
+        enabled: nextAt !== undefined,
+        remainingMs: undefined,
+      });
+      due.push(s);
+    }
+    if (!canDeliver()) throw Error("Schedule cancelled");
+    return due;
+  });
+}
+
+export function watchSchedules(
+  onNext: (rows: Schedule[]) => void,
+  onError: (error: unknown) => void,
+) {
+  return liveQuery(() => listSchedules()).subscribe({
+    next: onNext,
+    error: onError,
+  });
 }

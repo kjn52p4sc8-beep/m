@@ -1,5 +1,6 @@
 export const noteColors = [
   "white",
+  "red",
   "yellow",
   "pink",
   "green",
@@ -9,6 +10,7 @@ export const noteColors = [
 export type NoteColor = (typeof noteColors)[number];
 export const noteColorLabels: Record<NoteColor, string> = {
   white: "白",
+  red: "赤",
   yellow: "黄色",
   pink: "ピンク",
   green: "緑",

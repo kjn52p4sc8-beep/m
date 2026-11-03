@@ -1,3 +1,4 @@
+import { validateSchedule, type Schedule } from "./schedules";
 import { validateLinkPreview } from "./linkPreview";
 import { validateNoteReminder } from "./noteReminders";
 import { validateTodos } from "./todos";
@@ -24,7 +25,8 @@ import { validateTables } from "./tables";
 export const MAX_BACKUP_BYTES = 100 * 1024 * 1024;
 type Backup = {
   format: "my-memo";
-  version: 8;
+  version: 10;
+  schedules: Schedule[];
   preferences?: { theme: "light" | "dark" | "system" };
   exportedAt: string;
   categories: Category[];
@@ -98,7 +100,7 @@ export function parseBackup(input: unknown): Backup {
   const root = obj(input);
   if (
     root.format !== "my-memo" ||
-    ![1, 2, 3, 4, 5, 6, 7, 8].includes(root.version as number)
+    ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(root.version as number)
   )
     bad();
   const categories = arr(root.categories, 100).map((v) => {
@@ -218,6 +220,21 @@ export function parseBackup(input: unknown): Backup {
     if (!notes.some((n) => n.id === a.noteId)) bad();
     unique(a.annotations);
   }
+  const schedules =
+    root.schedules === undefined && Number(root.version) < 10
+      ? []
+      : arr(root.schedules, 10000).map(validateSchedule);
+  unique(schedules);
+  for (const schedule of schedules) {
+    if (schedule.noteId && !notes.some((n) => n.id === schedule.noteId)) bad();
+    if (
+      schedule.todoId &&
+      !notes
+        .find((n) => n.id === schedule.noteId)
+        ?.todos?.some((t) => t.id === schedule.todoId)
+    )
+      bad();
+  }
   let preferences: Backup["preferences"];
   if (root.preferences !== undefined) {
     const theme = obj(root.preferences).theme;
@@ -226,8 +243,9 @@ export function parseBackup(input: unknown): Backup {
   }
   return {
     format: "my-memo",
-    version: 8,
+    version: 10,
     preferences,
+    schedules,
     exportedAt: date(root.exportedAt),
     categories,
     folders,
@@ -246,7 +264,7 @@ export async function exportBackup() {
     recordings.push({ ...r, dataUrl: await blobToDataUrl(blob) });
   const text = JSON.stringify({
     format: "my-memo",
-    version: 8,
+    version: 10,
     preferences: { theme: readTheme() },
     exportedAt: new Date().toISOString(),
     ...data,
@@ -294,6 +312,7 @@ export async function readBackup(file: File) {
   }
   return {
     preferences: backup.preferences,
+    schedules: backup.schedules,
     categories: backup.categories,
     folders: backup.folders,
     notes: backup.notes,

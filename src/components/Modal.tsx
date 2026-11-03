@@ -13,6 +13,7 @@ export default function Modal({
   className?: string;
 }) {
   const ref = useRef<HTMLElement>(null);
+  const backdropPress = useRef(false);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   useEffect(() => {
@@ -86,7 +87,18 @@ export default function Modal({
     };
   }, []);
   return createPortal(
-    <div className={`modal-backdrop ${className}`} onClick={onClose}>
+    <div
+      className={`modal-backdrop ${className}`}
+      onPointerDown={(e) => {
+        backdropPress.current = e.target === e.currentTarget;
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && backdropPress.current) {
+          backdropPress.current = false;
+          onClose();
+        }
+      }}
+    >
       <section
         ref={ref}
         tabIndex={-1}
