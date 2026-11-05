@@ -7,6 +7,8 @@ export default function TodoPanel({
   notes,
   categories,
   compact = false,
+  query = "",
+  onDetails,
   onOpen,
   onToggle,
   onShowAll,
@@ -15,6 +17,8 @@ export default function TodoPanel({
   notes: Note[];
   categories: Category[];
   compact?: boolean;
+  query?: string;
+  onDetails?: (note: Note) => void;
   onOpen: (note: Note) => void;
   onToggle: (noteId: string, itemId: string, done: boolean) => Promise<void>;
   onShowAll?: () => void;
@@ -24,7 +28,10 @@ export default function TodoPanel({
   const [pendingChecks, setPendingChecks] = useState<Record<string, boolean>>(
     {},
   );
-  const tasks = taskRows(notes);
+  const normalize = (s: string) => s.normalize("NFKC").toLocaleLowerCase();
+  const tasks = taskRows(notes).filter(({ item }) =>
+    normalize(item.text).includes(normalize(query.trim())),
+  );
   const pending = tasks.filter((t) => !t.item.done);
   if (compact && !pending.length) return null;
   const row = ({ note, item }: (typeof tasks)[number]) => {
@@ -59,7 +66,7 @@ export default function TodoPanel({
         </label>
         <button
           className={`todo-title ${item.done ? "completed" : ""}`}
-          onClick={() => onOpen(note)}
+          onClick={() => (onEdit ? onEdit(note, item) : onOpen(note))}
         >
           {item.text}
           {item.dueAt && (
@@ -79,7 +86,9 @@ export default function TodoPanel({
               })}
             </small>
           )}
-          {!compact && <small>{note.title || "無題のメモ"}</small>}
+          {!compact && note.purpose !== "quick-todos" && (
+            <small>{note.title || "無題のメモ"}</small>
+          )}
         </button>
         {!compact && onEdit && (
           <button
@@ -123,6 +132,20 @@ export default function TodoPanel({
             完了した項目（{tasks.filter((t) => t.item.done).length}）
           </summary>
           {tasks.filter((t) => t.item.done).map(row)}
+        </details>
+      )}
+      {!compact && onDetails && !!notes.length && (
+        <details className="todo-note-details">
+          <summary>保存済みの本文・添付</summary>
+          {notes.map((n) => (
+            <button
+              key={n.id}
+              className="text-button todo-details"
+              onClick={() => onDetails(n)}
+            >
+              {n.title || "ToDo"}の本文・添付を開く
+            </button>
+          ))}
         </details>
       )}
     </section>

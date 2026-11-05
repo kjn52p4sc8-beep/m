@@ -129,7 +129,7 @@ export default function SettingsView({
             "共有・ログインについて",
           )}
           {row(Wifi, "オフライン・更新", () => setPanel("offline"))}
-          <p className="version-label">My Memo 0.9.0</p>
+          <p className="version-label">My Memo 0.10.0</p>
         </>
       )}
       {themePicker && (

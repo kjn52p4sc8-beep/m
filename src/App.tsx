@@ -1,5 +1,5 @@
+import { isTodoNote } from "./data/noteKind";
 import ScheduleNotifier from "./components/ScheduleNotifier";
-import SettingsView from "./components/SettingsView";
 import { incomingShare } from "./data/linkPreview";
 import { flushSync } from "react-dom";
 import { noteColors, noteColorLabels, type NoteColor } from "./data/noteColors";
@@ -28,8 +28,6 @@ import {
   ChevronRight,
   Folder as FolderIcon,
   ArrowLeft,
-  ArrowUp,
-  ArrowDown,
   Pencil,
   Trash2,
   Moon,
@@ -43,7 +41,8 @@ import {
   markOpened,
   togglePinned,
   setNoteColor,
-  addQuickTodo,
+  submitQuickTodo,
+  recoverSubmittedTodos,
   saveTodoItem,
   deleteTodoItem,
   initialize,
@@ -51,14 +50,15 @@ import {
   addFolder,
   renameFolder,
   deleteFolder,
-  moveFolder,
+  reorderFolders,
   newNote,
   saveNote,
   removeNote,
   quickFolder,
   toggleTodo,
   restoreNote,
-  permanentlyDeleteNote,
+  permanentlyDeleteNotes,
+  restoreNotes,
 } from "./data/repository";
 import TodoPanel from "./components/TodoPanel";
 import TrashView from "./components/TrashView";
@@ -67,6 +67,8 @@ import Editor from "./components/Editor";
 import Modal from "./components/Modal";
 import NoteList from "./components/NoteList";
 import { createSearchIndex } from "./data/search";
+const FolderList = lazy(() => import("./components/FolderList"));
+const SettingsView = lazy(() => import("./components/SettingsView"));
 const ScheduleManager = lazy(() => import("./components/ScheduleManager"));
 const icons: Record<string, typeof Wallet> = {
   money: Wallet,
@@ -162,15 +164,18 @@ export default function App() {
       setError("メモをごみ箱へ移せませんでした。");
     }
   }
+  const [trashSelecting, setTrashSelecting] = useState(false);
   const [todoDialog, setTodoDialog] = useState(false),
     [editingTodo, setEditingTodo] = useState<{
       note: Note;
       item: TodoItem;
     } | null>(null);
   async function createTodo(item: TodoItem) {
-    await addQuickTodo(item, undefined);
+    await submitQuickTodo(item);
     await refresh();
     setTodoDialog(false);
+    setTodoQuery("");
+    go("todo");
   }
   const [receivedShare, setReceivedShare] = useState(() =>
     incomingShare(location.search, location.pathname),
@@ -206,8 +211,13 @@ export default function App() {
     if (!notificationNote || loading || editing || capture) return;
     const note = data.notes.find((n) => n.id === notificationNote);
     if (note) {
-      setEditingNew(false);
-      setEditing(note);
+      if (isTodoNote(note)) {
+        setView("todo");
+        setTodoQuery("");
+      } else {
+        setEditingNew(false);
+        setEditing(note);
+      }
     } else setError("通知の対象メモが見つかりません。ごみ箱をご確認ください。");
     setNotificationNote(null);
     const url = new URL(location.href);
@@ -219,7 +229,12 @@ export default function App() {
     );
   }, [notificationNote, loading, editing, capture, data.notes]);
   const createLock = useRef(false);
+  const folderCreateLock = useRef(false);
+  const [folderCreating, setFolderCreating] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
+  const todoSearchInput = useRef<HTMLInputElement>(null);
+  const [todoQuery, setTodoQuery] = useState("");
+  const [todoSearch, setTodoSearch] = useState(false);
   useEffect(installViewportTracking, []);
   useScreenScroll(
     editing
@@ -232,6 +247,8 @@ export default function App() {
   useEffect(() => {
     initialize()
       .then(async () => {
+        const warnings = await recoverSubmittedTodos();
+        if (warnings.length) setError(warnings.join("\n"));
         await refresh();
       })
       .catch(() =>
@@ -346,24 +363,29 @@ export default function App() {
     setView("category");
     setShowFolderForm(false);
   }
+  const memoNotes = useMemo(
+    () => data.notes.filter((n) => !isTodoNote(n)),
+    [data.notes],
+  );
+  const todoNotes = useMemo(() => data.notes.filter(isTodoNote), [data.notes]);
   const selected = data.categories.find((c) => c.id === categoryId),
     folders = data.folders.filter((f) => f.categoryId === categoryId),
-    visibleNotes = data.notes.filter(
+    visibleNotes = memoNotes.filter(
       (n) =>
         n.categoryId === categoryId && (!folderId || n.folderId === folderId),
     );
   const homeNotes = useMemo(
     () =>
-      [...data.notes].sort(
+      [...memoNotes].sort(
         (a, b) =>
           Number(!!b.favorite) - Number(!!a.favorite) ||
           b.updatedAt.localeCompare(a.updatedAt),
       ),
-    [data.notes],
+    [memoNotes],
   );
   const searchIndex = useMemo(
-    () => createSearchIndex(view === "search" ? data.notes : []),
-    [data.notes, view],
+    () => createSearchIndex(view === "search" ? memoNotes : []),
+    [memoNotes, view],
   );
   const searchResults = searchIndex(query).filter(
     (n) =>
@@ -373,6 +395,11 @@ export default function App() {
       (!filterTag || n.tags.includes(filterTag)),
   );
   function openNote(note: Note) {
+    if (isTodoNote(note)) {
+      setTodoQuery("");
+      go("todo");
+      return;
+    }
     setEditingNew(false);
     setEditing(note);
     void action(() => markOpened(note.id));
@@ -447,7 +474,7 @@ export default function App() {
               <Icon size={19} className={c.color} />
               {c.name}
               <span>
-                {data.notes.filter((n) => n.categoryId === c.id).length}
+                {memoNotes.filter((n) => n.categoryId === c.id).length}
               </span>
             </button>
           );
@@ -478,6 +505,11 @@ export default function App() {
                 className="icon-button"
                 aria-label="検索"
                 onClick={() => {
+                  if (view === "todo") {
+                    flushSync(() => setTodoSearch(true));
+                    todoSearchInput.current?.focus({ preventScroll: true });
+                    return;
+                  }
                   flushSync(() => go("search"));
                   searchInput.current?.focus({ preventScroll: true });
                 }}
@@ -632,10 +664,16 @@ export default function App() {
                           setError("フォルダ名を入力してください。");
                           return;
                         }
+                        if (folderCreateLock.current) return;
+                        folderCreateLock.current = true;
+                        setFolderCreating(true);
                         void action(async () => {
                           await addFolder(categoryId, newFolderName);
                           setNewFolderName("");
                           setShowFolderForm(false);
+                        }).finally(() => {
+                          folderCreateLock.current = false;
+                          setFolderCreating(false);
                         });
                       }}
                     >
@@ -647,90 +685,50 @@ export default function App() {
                         value={newFolderName}
                         onChange={(e) => setNewFolderName(e.target.value)}
                       />
-                      <button className="primary">作成</button>
+                      <button className="primary" disabled={folderCreating}>
+                        作成
+                      </button>
                     </form>
                   )}
-                  <div className="folder-list">
-                    {folders.map((f, i) => (
-                      <div
-                        className={`folder-row ${folderId === f.id ? "chosen" : ""}`}
-                        key={f.id}
-                      >
-                        <button
-                          className="folder-name"
-                          onClick={() =>
-                            setFolderId(folderId === f.id ? "" : f.id)
-                          }
-                        >
-                          <FolderIcon size={20} />
-                          <span>
-                            {f.name}
-                            <small>
-                              {
-                                data.notes.filter((n) => n.folderId === f.id)
-                                  .length
-                              }{" "}
-                              メモ
-                            </small>
-                          </span>
-                        </button>
-                        <div className="folder-actions">
-                          <button
-                            className="icon-button"
-                            aria-label={`${f.name}を上へ`}
-                            disabled={i === 0}
-                            onClick={() =>
-                              void action(() => moveFolder(f.id, -1))
-                            }
-                          >
-                            <ArrowUp size={16} />
-                          </button>
-                          <button
-                            className="icon-button"
-                            aria-label={`${f.name}を下へ`}
-                            disabled={i === folders.length - 1}
-                            onClick={() =>
-                              void action(() => moveFolder(f.id, 1))
-                            }
-                          >
-                            <ArrowDown size={16} />
-                          </button>
-                          <button
-                            className="icon-button"
-                            aria-label={`${f.name}の名前変更`}
-                            onClick={() => {
-                              const name = prompt("新しいフォルダ名", f.name);
-                              if (name !== null && !name.trim()) {
-                                setError("フォルダ名を入力してください。");
-                                return;
-                              }
-                              if (name !== null)
-                                void action(() => renameFolder(f.id, name));
-                            }}
-                          >
-                            <Pencil size={16} />
-                          </button>
-                          <button
-                            className="icon-button danger"
-                            aria-label={`${f.name}を削除`}
-                            onClick={() => {
-                              if (
-                                confirm(
-                                  `「${f.name}」を削除し、フォルダ内のメモをごみ箱へ移しますか？ メモは後から復元できます。`,
-                                )
-                              )
-                                void action(async () => {
-                                  await deleteFolder(f.id);
-                                  if (folderId === f.id) setFolderId("");
-                                });
-                            }}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <Suspense
+                    fallback={<p role="status">フォルダを読み込み中…</p>}
+                  >
+                    <FolderList
+                      folders={folders}
+                      selectedId={folderId}
+                      counts={Object.fromEntries(
+                        folders.map((f) => [
+                          f.id,
+                          memoNotes.filter((n) => n.folderId === f.id).length,
+                        ]),
+                      )}
+                      onOpen={(id) => setFolderId(folderId === id ? "" : id)}
+                      onReorder={async (ids) => {
+                        await reorderFolders(categoryId, ids);
+                        await refresh();
+                      }}
+                      onRename={(f) => {
+                        const name = prompt("新しいフォルダ名", f.name);
+                        if (name !== null && !name.trim()) {
+                          setError("フォルダ名を入力してください。");
+                          return;
+                        }
+                        if (name !== null)
+                          void action(() => renameFolder(f.id, name));
+                      }}
+                      onDelete={(f) => {
+                        if (
+                          confirm(
+                            `「${f.name}」を削除し、フォルダ内のメモをごみ箱へ移しますか？ メモは後から復元できます。`,
+                          )
+                        )
+                          void action(async () => {
+                            await deleteFolder(f.id);
+                            if (folderId === f.id) setFolderId("");
+                          });
+                      }}
+                    />
+                  </Suspense>
                   <div className="section-heading">
                     <h2>
                       {folders.find((f) => f.id === folderId)?.name ||
@@ -856,7 +854,7 @@ export default function App() {
                         onChange={(e) => setFilterTag(e.target.value)}
                       >
                         <option value="">すべて</option>
-                        {[...new Set(data.notes.flatMap((n) => n.tags))]
+                        {[...new Set(memoNotes.flatMap((n) => n.tags))]
                           .sort()
                           .map((t) => (
                             <option key={t} value={t}>
@@ -898,9 +896,36 @@ export default function App() {
                       通知・タイマー
                     </button>
                   </div>
+                  {todoSearch && (
+                    <label className="search-input">
+                      <Search size={20} />
+                      <input
+                        ref={todoSearchInput}
+                        aria-label="ToDoを検索"
+                        type="search"
+                        value={todoQuery}
+                        onChange={(e) => setTodoQuery(e.target.value)}
+                        placeholder="ToDoを検索"
+                      />
+                      <button
+                        className="text-button"
+                        onClick={() => {
+                          setTodoQuery("");
+                          setTodoSearch(false);
+                        }}
+                      >
+                        閉じる
+                      </button>
+                    </label>
+                  )}
                   <TodoForm onSave={createTodo} />
                   <TodoPanel
-                    notes={data.notes}
+                    query={todoQuery}
+                    onDetails={(note) => {
+                      setEditingNew(false);
+                      setEditing(note);
+                    }}
+                    notes={todoNotes}
                     categories={data.categories}
                     onEdit={(note, item) => setEditingTodo({ note, item })}
                     onOpen={openNote}
@@ -924,29 +949,38 @@ export default function App() {
               {view === "trash" && (
                 <TrashView
                   notes={data.trash}
-                  onRestore={(id) => action(() => restoreNote(id))}
-                  onDelete={(id) => action(() => permanentlyDeleteNote(id))}
+                  onSelecting={setTrashSelecting}
+                  onRestore={async (ids) => {
+                    await restoreNotes(ids);
+                    await refresh();
+                  }}
+                  onDelete={async (ids) => {
+                    await permanentlyDeleteNotes(ids);
+                    await refresh();
+                  }}
                 />
               )}
               {view === "settings" && (
                 <>
-                  <SettingsView
-                    theme={theme}
-                    onTheme={setTheme}
-                    categories={data.categories}
-                    trashCount={data.trash.length}
-                    onCategory={openCategory}
-                    onTrash={() => go("trash")}
-                    onCreate={() => setTypeDialog(true)}
-                    onCapture={() => setCapture(true)}
-                    onTutorial={() => setTutorial(true)}
-                    onSharing={() => setSharingInfo(true)}
-                    onRestored={async () => {
-                      setDeletedUndo(null);
-                      setTheme(readTheme());
-                      await refresh();
-                    }}
-                  />
+                  <Suspense fallback={<p role="status">設定を読み込み中…</p>}>
+                    <SettingsView
+                      theme={theme}
+                      onTheme={setTheme}
+                      categories={data.categories}
+                      trashCount={data.trash.length}
+                      onCategory={openCategory}
+                      onTrash={() => go("trash")}
+                      onCreate={() => setTypeDialog(true)}
+                      onCapture={() => setCapture(true)}
+                      onTutorial={() => setTutorial(true)}
+                      onSharing={() => setSharingInfo(true)}
+                      onRestored={async () => {
+                        setDeletedUndo(null);
+                        setTheme(readTheme());
+                        await refresh();
+                      }}
+                    />
+                  </Suspense>
                   {tutorial && <Tutorial onClose={() => setTutorial(false)} />}
                 </>
               )}
@@ -972,14 +1006,26 @@ export default function App() {
             <SquareCheck size={21} />
             <span>ToDo</span>
           </button>
-          <button
-            className="simple-create icon-button"
-            aria-label="クイックメモを作成"
-            disabled={creating}
-            onClick={() => void quickCreate()}
-          >
-            <Plus size={26} />
-          </button>
+          {!(view === "trash" && trashSelecting) && (
+            <button
+              className="simple-create icon-button"
+              aria-label={
+                view === "todo" ? "クイックToDoを作成" : "クイックメモを作成"
+              }
+              disabled={creating}
+              onClick={() => {
+                if (view === "todo") {
+                  const input = document.querySelector<HTMLInputElement>(
+                    '.todo-form input[aria-label="やること"]',
+                  );
+                  input?.focus({ preventScroll: true });
+                  input?.scrollIntoView({ block: "center" });
+                } else void quickCreate();
+              }}
+            >
+              <Plus size={26} />
+            </button>
+          )}
         </nav>
       )}
       <div className="keyboard-bar">

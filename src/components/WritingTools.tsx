@@ -1,4 +1,5 @@
-import { useState, type RefObject } from "react";
+import { PenLine, RotateCcw } from "lucide-react";
+import { useState, useMemo, type RefObject } from "react";
 import type { Note } from "../data/model";
 import { counts, paint, penColors, type PenColor } from "../data/productivity";
 const labels = {
@@ -32,7 +33,10 @@ export default function WritingTools({
 }) {
   const [palette, setPalette] = useState(false),
     [details, setDetails] = useState(false);
-  const c = counts(note.body, note.body.slice(...selection)),
+  const c = useMemo(
+      () => counts(note.body, note.body.slice(...selection)),
+      [note.body, selection],
+    ),
     limit = note.characterLimit;
   return (
     <div className="writing-tools">
@@ -40,6 +44,7 @@ export default function WritingTools({
         <button
           type="button"
           className={`pen-${pen}`}
+          aria-label={`文字色：${labels[pen]}`}
           aria-expanded={palette}
           onPointerDown={(e) => e.preventDefault()}
           onClick={() => {
@@ -48,10 +53,15 @@ export default function WritingTools({
             setPalette(!palette);
           }}
         >
-          文字色：{labels[pen]}
+          <PenLine size={20} />
         </button>
-        <button type="button" disabled={!canUndo} onClick={onUndo}>
-          取り消す
+        <button
+          type="button"
+          aria-label="取り消す"
+          disabled={!canUndo}
+          onClick={onUndo}
+        >
+          <RotateCcw size={20} />
         </button>
         <button
           type="button"

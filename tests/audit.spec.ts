@@ -8,8 +8,12 @@ test("folder validation, reorder boundaries and recovery when a category has no 
   await openFolders(page, "お金");
   await expect(
     page.getByRole("button", { name: "収入・支出を上へ" }),
-  ).toBeDisabled();
-  await page.getByRole("button", { name: "収入・支出を下へ" }).click();
+  ).toHaveCount(0);
+  await page.locator(".folder-name").first().focus();
+  await page.keyboard.press("Space");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
   await expect(page.locator(".folder-name").first()).toContainText("貯金");
   page.once("dialog", (d) => d.accept("  "));
   await page.getByRole("button", { name: "貯金の名前変更" }).click();

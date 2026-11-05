@@ -2,6 +2,13 @@ import type { Page } from "@playwright/test";
 // Existing feature regression journeys explicitly expand the relocated controls.
 export async function openEditorSections(page: Page) {
   await page.locator(".editor").waitFor({ state: "visible" });
+  if (await page.locator(".editor-insert-panel").isHidden()) {
+    await page.getByRole("button", { name: "挿入・設定", exact: true }).click();
+    await page
+      .getByRole("dialog", { name: "挿入・設定", exact: true })
+      .getByRole("button", { name: "画像・音声・表・リンク", exact: true })
+      .click();
+  }
   for (const selector of [".editor-organization", ".editor-extras"]) {
     const details = page.locator(selector);
     if (

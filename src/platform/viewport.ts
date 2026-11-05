@@ -32,7 +32,9 @@ export function installViewportTracking() {
       rect = element.getBoundingClientRect();
     const top = (viewport?.offsetTop || 0) + 64,
       bottom =
-        (viewport?.offsetTop || 0) + (viewport?.height || innerHeight) - 64;
+        (viewport?.offsetTop || 0) +
+        (viewport?.height || innerHeight) -
+        (document.querySelector(".editor") ? 108 : 64);
     // Leave caret tracking inside a tall textarea to Safari itself.
     if (rect.height > bottom - top) return;
     const delta =

@@ -68,18 +68,13 @@ test("quick creation, checklist dashboard, search highlight and trash restore pr
   await page.getByRole("button", { name: "戻る", exact: true }).click();
   await page.getByRole("button", { name: "ToDo", exact: true }).click();
   const panel = page.getByRole("region", { name: "やること一覧" });
-  await expect(panel).toContainText("充電器を用意");
-  // Completion removes this row from the compact pending list.
-  await panel.getByRole("checkbox", { name: "充電器を用意を完了" }).click();
+  await expect(panel).not.toContainText("充電器を用意");
+  await page.getByRole("button", { name: "メモ", exact: true }).click();
+  await page.locator(".note-row").click();
+  await page.getByRole("checkbox", { name: "充電器を用意を完了" }).click();
   await expect(
-    panel.getByRole("checkbox", { name: "充電器を用意を完了" }),
-  ).toBeHidden();
-  await page.getByRole("button", { name: "ToDo", exact: true }).click();
-  await page.getByText("完了した項目（1）", { exact: true }).click();
-  await expect(
-    page.getByRole("checkbox", { name: "充電器を用意を完了" }),
-  ).toBeChecked();
-  await page.getByRole("button", { name: /充電器を用意.*旅の準備/ }).click();
+    page.getByText("完了した項目（1）", { exact: true }),
+  ).toBeVisible();
   page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "メモを削除", exact: true }).click();
   await page.getByRole("button", { name: "設定を開く" }).click();

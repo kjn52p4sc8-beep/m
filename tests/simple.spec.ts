@@ -206,6 +206,11 @@ test("checklist shortcut focuses the new item and ToDo remains one tap away", as
   await page.getByLabel("チェック項目", { exact: true }).fill("すぐ追加する");
   await page.getByRole("button", { name: "戻る", exact: true }).click();
   await page.getByRole("button", { name: "ToDo", exact: true }).click();
+  await expect(
+    page.getByRole("checkbox", { name: "すぐ追加するを完了", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "メモ", exact: true }).click();
+  await page.locator(".note-row").click();
   await page
     .getByRole("checkbox", { name: "すぐ追加するを完了", exact: true })
     .click();

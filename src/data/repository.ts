@@ -148,20 +148,23 @@ export async function deleteFolder(id: string) {
     await db.folders.update(id, { deletedAt });
   });
 }
-export async function moveFolder(id: string, direction: number) {
+export async function reorderFolders(categoryId: string, ids: string[]) {
   await db.transaction("rw", db.folders, async () => {
-    const folder = await db.folders.get(id);
-    if (!folder) return;
-    const siblings = (
-      await db.folders.where("categoryId").equals(folder.categoryId).toArray()
+    const folders = (
+      await db.folders.where("categoryId").equals(categoryId).toArray()
+    ).filter((f) => !f.deletedAt);
+    if (
+      new Set(ids).size !== ids.length ||
+      ids.length !== folders.length ||
+      ids.some((id) => !folders.some((f) => f.id === id))
     )
-      .filter((f) => !f.deletedAt)
-      .sort((a, b) => a.order - b.order);
-    const i = siblings.findIndex((f) => f.id === id),
-      j = i + direction;
-    if (j < 0 || j >= siblings.length) return;
-    [siblings[i], siblings[j]] = [siblings[j], siblings[i]];
-    await db.folders.bulkPut(siblings.map((f, order) => ({ ...f, order })));
+      throw Error(
+        "フォルダの内容が変わりました。並び順を確認して再試行してください。",
+      );
+    const byId = new Map(folders.map((f) => [f.id, f]));
+    await db.folders.bulkPut(
+      ids.map((id, order) => ({ ...byId.get(id)!, order })),
+    );
   });
 }
 export async function saveNote(note: Note) {
@@ -202,38 +205,56 @@ export async function removeNote(id: string) {
   });
 }
 export async function restoreNote(id: string) {
+  await restoreNotes([id]);
+}
+export async function restoreNotes(ids: string[]) {
+  const keys = [...new Set(ids)];
+  if (!keys.length) return;
   await db.transaction("rw", db.notes, db.folders, async () => {
-    const note = await db.notes.get(id);
-    if (!note?.deletedAt) return;
-    const folder = await db.folders.get(note.folderId);
-    if (!folder)
-      throw Error(
-        "元のフォルダが見つかりません。バックアップから復元してください。",
-      );
-    if (folder.deletedAt)
-      await db.folders.update(folder.id, { deletedAt: undefined });
-    await db.notes.update(id, {
-      deletedAt: undefined,
-      updatedAt: new Date().toISOString(),
-    });
+    const notes = await db.notes.bulkGet(keys);
+    if (notes.some((n) => !n?.deletedAt))
+      throw Error("ごみ箱の内容が変わりました。対象を確認してください。");
+    for (const note of notes) {
+      const folder = await db.folders.get(note!.folderId);
+      if (!folder)
+        throw Error(
+          "元のフォルダが見つかりません。バックアップから復元してください。",
+        );
+      if (folder.deletedAt)
+        await db.folders.update(folder.id, { deletedAt: undefined });
+      await db.notes.update(note!.id, {
+        deletedAt: undefined,
+        updatedAt: new Date().toISOString(),
+      });
+    }
   });
 }
 export async function permanentlyDeleteNote(id: string) {
+  await permanentlyDeleteNotes([id]);
+}
+export async function permanentlyDeleteNotes(ids: string[]) {
+  const keys = [...new Set(ids)];
+  if (!keys.length) return;
   await db.transaction(
     "rw",
-    db.notes,
-    db.attachments,
-    db.recordings,
-    db.reminderReceipts,
-    db.schedules,
+    [
+      db.notes,
+      db.attachments,
+      db.recordings,
+      db.reminderReceipts,
+      db.schedules,
+    ],
     async () => {
-      if (!(await db.notes.get(id))?.deletedAt)
-        throw Error("完全削除はごみ箱から行ってください。");
-      await db.attachments.where("noteId").equals(id).delete();
-      await db.recordings.where("noteId").equals(id).delete();
-      await db.reminderReceipts.where("noteId").equals(id).delete();
-      await db.schedules.where("noteId").equals(id).delete();
-      await db.notes.delete(id);
+      const notes = await db.notes.bulkGet(keys);
+      if (notes.some((n) => !n?.deletedAt))
+        throw Error(
+          "完全削除はごみ箱から行ってください。内容が変わった場合は再選択してください。",
+        );
+      await db.attachments.where("noteId").anyOf(keys).delete();
+      await db.recordings.where("noteId").anyOf(keys).delete();
+      await db.reminderReceipts.where("noteId").anyOf(keys).delete();
+      await db.schedules.where("noteId").anyOf(keys).delete();
+      await db.notes.bulkDelete(keys);
     },
   );
 }
@@ -476,6 +497,71 @@ export async function addQuickTodo(item: TodoItem, categoryId?: string) {
     await db.notes.put({ ...note, todos, updatedAt: new Date().toISOString() });
     return note.id;
   });
+}
+// A synchronous journal closes the gap between submitting and the IndexedDB commit.
+// Item IDs make replay safe when a page closes after commit but before cleanup.
+const submittedTodoPrefix = "my-memo-submitted-todo:";
+export async function submitQuickTodo(
+  item: TodoItem,
+  categoryId?: string,
+  storage: Storage = localStorage,
+) {
+  const validated = validateTodos([item])[0];
+  if (!validated.text.trim()) throw Error("やることを入力してください。");
+  const key = submittedTodoPrefix + validated.id;
+  try {
+    storage.setItem(
+      key,
+      JSON.stringify({ version: 1, item: validated, categoryId }),
+    );
+  } catch {
+    throw Error(
+      "ToDoの一時保存ができません。入力を残したまま、空き容量・保存設定を確認してください。",
+    );
+  }
+  const noteId = await addQuickTodo(validated, categoryId);
+  storage.removeItem(key);
+  return noteId;
+}
+export async function recoverSubmittedTodos(storage?: Storage) {
+  const warnings: string[] = [];
+  try {
+    const journal = storage ?? localStorage;
+    const keys = Array.from({ length: journal.length }, (_, i) =>
+      journal.key(i),
+    ).filter((key): key is string => !!key?.startsWith(submittedTodoPrefix));
+    for (const key of keys) {
+      try {
+        const raw = journal.getItem(key);
+        if (raw === null) continue;
+        const entry = JSON.parse(raw);
+        if (
+          entry?.version !== 1 ||
+          (entry.categoryId !== undefined &&
+            typeof entry.categoryId !== "string")
+        )
+          throw Error("invalid journal");
+        const item = validateTodos([entry.item])[0];
+        if (key !== submittedTodoPrefix + item.id || !item.text.trim())
+          throw Error("invalid journal");
+        // Include the trash and moved notes: replay must not resurrect or duplicate them.
+        const existing = await db.notes
+          .filter((n) => n.todos?.some((t) => t.id === item.id) === true)
+          .first();
+        if (!existing) await addQuickTodo(item, entry.categoryId);
+        journal.removeItem(key);
+      } catch {
+        warnings.push(
+          "保存途中のToDoを復旧できませんでした。一時記録は保持しています。空き容量・保存設定を確認して再読み込みしてください。",
+        );
+      }
+    }
+  } catch {
+    warnings.push(
+      "保存途中のToDoを確認できませんでした。ブラウザの保存設定を確認してください。",
+    );
+  }
+  return [...new Set(warnings)];
 }
 export async function claimDueReminders(
   now = Date.now(),

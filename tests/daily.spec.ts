@@ -1,4 +1,11 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+async function openReminder(page: Page) {
+  await page.getByRole("button", { name: "挿入・設定", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "リマインダー", exact: true })
+    .click();
+}
 test("note reminder persists, reports foreground-only delivery, opens the note and can be cancelled", async ({
   page,
 }) => {
@@ -7,7 +14,7 @@ test("note reminder persists, reports foreground-only delivery, opens the note a
     .getByRole("button", { name: "クイックメモを作成", exact: true })
     .click();
   await page.getByLabel("タイトル", { exact: true }).fill("見返すメモ");
-  await page.getByText("リマインダー", { exact: true }).click();
+  await openReminder(page);
   await expect(page.getByText(/閉じている間は配信されず/)).toBeVisible();
   await page.getByLabel("メモの通知日時").fill("2020-01-01T10:00");
   await page
@@ -17,7 +24,7 @@ test("note reminder persists, reports foreground-only delivery, opens the note a
   await page
     .getByRole("button", { name: "見返すメモを開く", exact: true })
     .click();
-  await page.getByText("リマインダー：通知済み", { exact: true }).click();
+  await openReminder(page);
   await expect(page.getByText(/アプリ内で通知済み/)).toBeVisible();
   await page
     .getByRole("button", { name: "メモの通知を解除", exact: true })
@@ -25,7 +32,7 @@ test("note reminder persists, reports foreground-only delivery, opens the note a
   await page.getByRole("button", { name: "戻る", exact: true }).click();
   await page.reload();
   await page.locator(".note-row").first().click();
-  await page.getByText("リマインダー", { exact: true }).click();
+  await openReminder(page);
   await expect(page.getByLabel("メモの通知日時")).toHaveValue("");
 });
 test("search renders bounded batches while keeping all matching notes reachable", async ({
@@ -80,7 +87,7 @@ test("leaving while notification permission is pending does not silently alter t
     .getByRole("button", { name: "クイックメモを作成", exact: true })
     .click();
   await page.getByLabel("タイトル", { exact: true }).fill("通知の許可待ち");
-  await page.getByText("リマインダー", { exact: true }).click();
+  await openReminder(page);
   await page.getByLabel("メモの通知日時").fill("2030-01-01T10:00");
   await page
     .getByRole("button", { name: "アプリ内のお知らせを設定", exact: true })
@@ -89,11 +96,11 @@ test("leaving while notification permission is pending does not silently alter t
   await page.getByRole("button", { name: "戻る", exact: true }).click();
   await page.evaluate(() => (window as any).grant());
   await page.locator(".note-row").click();
-  await page.getByText("リマインダー", { exact: true }).click();
+  await openReminder(page);
   await expect(page.getByLabel("メモの通知日時")).toHaveValue("");
   await page.getByRole("button", { name: "戻る", exact: true }).click();
   await page.reload();
   await page.locator(".note-row").click();
-  await page.getByText("リマインダー", { exact: true }).click();
+  await openReminder(page);
   await expect(page.getByLabel("メモの通知日時")).toHaveValue("");
 });

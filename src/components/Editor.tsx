@@ -1,3 +1,4 @@
+import Modal from "./Modal";
 import SavedLink from "./SavedLink";
 import { canonicalLink } from "../data/linkPreview";
 import NoteReminderEditor from "./NoteReminderEditor";
@@ -5,7 +6,7 @@ import { flushSync } from "react-dom";
 import NoteColorPalette from "./NoteColorPalette";
 import ShareAction from "./ShareAction";
 import { captureContent } from "../data/sharing";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import {
   Palette,
   SquareCheck,
@@ -62,6 +63,44 @@ export default function Editor({
     [linkTitle, setLinkTitle] = useState(""),
     [linkTags, setLinkTags] = useState("");
   const [palette, setPalette] = useState(false);
+  const [insertMenu, setInsertMenu] = useState(false),
+    [insertExpanded, setInsertExpanded] = useState(false);
+  const insertSelection = useRef({ start: 0, end: 0, scroll: 0, page: 0 });
+  function rememberCursor() {
+    const el = bodyInput.current;
+    if (el)
+      insertSelection.current = {
+        start: el.selectionStart,
+        end: el.selectionEnd,
+        scroll: el.scrollTop,
+        page: window.scrollY,
+      };
+  }
+  function restoreCursor() {
+    const el = bodyInput.current;
+    if (!el) return;
+    const s = insertSelection.current;
+    el.focus({ preventScroll: true });
+    el.setSelectionRange(s.start, s.end);
+    el.scrollTop = s.scroll;
+    window.scrollTo({ top: s.page, behavior: "instant" });
+  }
+  function closeInsertMenu() {
+    flushSync(() => setInsertMenu(false));
+    restoreCursor();
+  }
+  function openInsertSection(selector: string) {
+    flushSync(() => {
+      setInsertMenu(false);
+      setInsertExpanded(true);
+    });
+    const section = document.querySelector<HTMLDetailsElement>(selector);
+    if (section) {
+      section.open = true;
+      section.scrollIntoView({ block: "start", behavior: "instant" });
+    }
+  }
+
   const [selection, setSelection] = useState<[number, number]>([0, 0]);
   const [pen, setPen] = useState<PenColor>(() => {
     try {
@@ -72,6 +111,17 @@ export default function Editor({
     }
   });
   const [undo, setUndo] = useState<Partial<Note>[]>([]);
+  const composing = useRef(false);
+  const [compositionActive, setCompositionActive] = useState(false);
+  const compositionBase = useRef<{
+    body: string;
+    bodyColors: Note["bodyColors"];
+    selection: [number, number];
+  } | null>(null);
+  const paintedBody = useMemo(
+    () => colorParts(note.body, note.bodyColors || []),
+    [note.body, note.bodyColors],
+  );
   const beforeSelection = useRef<[number, number] | undefined>(undefined);
   const colorLayer = useRef<HTMLPreElement>(null);
   const base = useRef(initial),
@@ -84,13 +134,14 @@ export default function Editor({
     [busy, setBusy] = useState(false);
   function persist() {
     clearTimeout(timer.current);
-    if (pending.current || !dirty.current) return queue.current;
+    if (pending.current || !dirty.current || composing.current)
+      return queue.current;
     pending.current = 1;
     setStatus("保存中…");
     queue.current = Promise.resolve()
       .then(async () => {
         // Edits arriving during a write are drained before reporting saved or leaving.
-        while (dirty.current) {
+        while (dirty.current && !composing.current) {
           const value = current.current;
           dirty.current = false;
           await saveNote(value);
@@ -105,7 +156,7 @@ export default function Editor({
           }
           onSaved();
         }
-        setStatus("保存済み");
+        setStatus(dirty.current ? "入力中…" : "保存済み");
         setError("");
       })
       .catch(() => {
@@ -123,6 +174,7 @@ export default function Editor({
   function change(patch: Partial<Note>, remember = true) {
     if (
       remember &&
+      !composing.current &&
       (patch.body !== undefined || patch.bodyColors !== undefined)
     ) {
       setUndo((history) => [
@@ -158,9 +210,10 @@ export default function Editor({
     }
     setStatus("未保存");
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      void persist();
-    }, 500);
+    if (!composing.current)
+      timer.current = setTimeout(() => {
+        void persist();
+      }, 500);
   }
   useEffect(() => {
     const input = bodyInput.current;
@@ -237,6 +290,37 @@ export default function Editor({
   }
   return (
     <div className={`editor memo-color-${note.backgroundColor || "white"}`}>
+      {insertMenu && (
+        <Modal
+          label="挿入・設定"
+          className="palette-sheet"
+          onClose={closeInsertMenu}
+        >
+          <div className="note-actions">
+            <button
+              className="text-button"
+              onClick={() => openInsertSection(".note-reminder-editor")}
+            >
+              リマインダー
+            </button>
+            <button
+              className="text-button"
+              onClick={() => openInsertSection(".editor-organization")}
+            >
+              分類・タグ
+            </button>
+            <button
+              className="text-button"
+              onClick={() => openInsertSection(".editor-extras")}
+            >
+              画像・音声・表・リンク
+            </button>
+            <button className="text-button" onClick={closeInsertMenu}>
+              閉じる
+            </button>
+          </div>
+        </Modal>
+      )}
       {palette && (
         <NoteColorPalette
           color={note.backgroundColor || "white"}
@@ -313,6 +397,14 @@ export default function Editor({
           aria-label="タイトル"
           placeholder="タイトルを入力"
           value={note.title}
+          onCompositionStart={() => {
+            composing.current = true;
+            clearTimeout(timer.current);
+          }}
+          onCompositionEnd={(e) => {
+            composing.current = false;
+            change({ title: e.currentTarget.value });
+          }}
           onChange={(e) => change({ title: e.target.value })}
         />
         <div className="note-date">
@@ -323,9 +415,11 @@ export default function Editor({
           })}
         </div>
         <FinanceEditor note={note} onChange={change} />
-        <div className="colored-body">
+        <div
+          className={`colored-body ${compositionActive ? "is-composing" : ""}`}
+        >
           <pre ref={colorLayer} className="body-color-layer" aria-hidden="true">
-            {colorParts(note.body, note.bodyColors || []).map((p, i) => (
+            {paintedBody.map((p, i) => (
               <span key={i} className={`pen-${p.color}`}>
                 {p.text}
               </span>
@@ -335,6 +429,51 @@ export default function Editor({
           <textarea
             className="note-body-input"
             ref={bodyInput}
+            onCompositionStart={(e) => {
+              composing.current = true;
+              setCompositionActive(true);
+              clearTimeout(timer.current);
+              compositionBase.current = {
+                body: current.current.body,
+                bodyColors: current.current.bodyColors,
+                selection: [
+                  e.currentTarget.selectionStart,
+                  e.currentTarget.selectionEnd,
+                ],
+              };
+            }}
+            onCompositionEnd={(e) => {
+              const previous = compositionBase.current,
+                value = e.currentTarget.value;
+              composing.current = false;
+              setCompositionActive(false);
+              compositionBase.current = null;
+              if (previous && previous.body !== value)
+                setUndo((history) => [
+                  ...history.slice(-49),
+                  {
+                    body: previous.body,
+                    bodyColors: previous.bodyColors || [],
+                  },
+                ]);
+              change(
+                {
+                  body: value,
+                  bodyColors: previous
+                    ? editColors(
+                        previous.body,
+                        value,
+                        previous.bodyColors || [],
+                        pen,
+                        previous.selection,
+                        "insertCompositionText",
+                      )
+                    : current.current.bodyColors,
+                },
+                false,
+              );
+              beforeSelection.current = undefined;
+            }}
             onPaste={(e) => {
               try {
                 const incoming = captureContent(
@@ -378,6 +517,7 @@ export default function Editor({
               }
             }}
             onChange={(e) => {
+              if (e.target.value === current.current.body) return;
               change({
                 body: e.target.value,
                 bodyColors: editColors(
@@ -417,6 +557,182 @@ export default function Editor({
             ))}
           </section>
         )}
+        <div className="editor-checklist" hidden={!(note.todos || []).length}>
+          <Checklist
+            items={note.todos || []}
+            onChange={(todos) => change({ todos })}
+          />
+        </div>
+        <div className="editor-insert-panel" hidden={!insertExpanded}>
+          <div className="section-heading">
+            <h2>挿入・設定</h2>
+            <button
+              type="button"
+              className="text-button"
+              disabled={imageBusy || audioBusy}
+              onClick={() => {
+                flushSync(() => setInsertExpanded(false));
+                restoreCursor();
+              }}
+            >
+              本文へ戻る
+            </button>
+          </div>
+          <NoteReminderEditor
+            value={note.noteReminder}
+            onChange={(noteReminder) => change({ noteReminder })}
+          />
+          <details className="editor-organization">
+            <summary>分類・タグ</summary>{" "}
+            <div className="location-fields">
+              <label>
+                カテゴリー
+                <select
+                  aria-label="カテゴリー"
+                  value={note.categoryId}
+                  onChange={(e) => {
+                    const f = folders.find(
+                      (f) => f.categoryId === e.target.value,
+                    );
+                    if (f) change({ categoryId: f.categoryId, folderId: f.id });
+                  }}
+                >
+                  {categories.map((c) => (
+                    <option
+                      key={c.id}
+                      value={c.id}
+                      disabled={!folders.some((f) => f.categoryId === c.id)}
+                    >
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                フォルダ
+                <select
+                  aria-label="フォルダ"
+                  value={note.folderId}
+                  onChange={(e) => change({ folderId: e.target.value })}
+                >
+                  {folders
+                    .filter((f) => f.categoryId === note.categoryId)
+                    .map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            </div>
+            <label className="field">
+              タグ{" "}
+              <input
+                aria-label="タグ"
+                placeholder="読書, アイデア（カンマ区切り）"
+                defaultValue={note.tags.join(", ")}
+                onChange={(e) => change({ tags: parseTags(e.target.value) })}
+              />
+            </label>
+          </details>
+          <details className="editor-extras">
+            <summary>画像・音声・表・リンク</summary>
+            <TableEditor
+              tables={note.tables || []}
+              onChange={(tables) => change({ tables })}
+            />
+            <Images
+              noteId={note.id}
+              onBusy={setImageBusy}
+              onChanged={(updatedAt) => {
+                if (updatedAt && updatedAt > current.current.updatedAt) {
+                  current.current = { ...current.current, updatedAt };
+                  setNote(current.current);
+                }
+                onSaved();
+              }}
+            />
+            <Recordings
+              noteId={note.id}
+              onBusy={setAudioBusy}
+              onChanged={(updatedAt) => {
+                if (updatedAt && updatedAt > current.current.updatedAt) {
+                  current.current = { ...current.current, updatedAt };
+                  setNote(current.current);
+                }
+                onSaved();
+              }}
+            />
+            <section className="links-section">
+              <div className="section-heading">
+                <h3>
+                  <LinkIcon size={18} />
+                  動画・Webリンク
+                </h3>
+                <button
+                  className="text-button"
+                  onClick={() => setLinkForm(!linkForm)}
+                >
+                  <Plus size={17} />
+                  追加
+                </button>
+              </div>
+              {!note.links.length && !linkForm && (
+                <p className="muted">
+                  見返したい動画やサイトを、メモと一緒に。
+                </p>
+              )}
+              {linkForm && (
+                <form onSubmit={addLink} className="link-form">
+                  {linkError && (
+                    <p role="alert" className="error">
+                      {linkError}
+                    </p>
+                  )}
+                  <label className="field">
+                    URL
+                    <input
+                      required
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      inputMode="url"
+                      enterKeyHint="next"
+                      type="url"
+                      value={url}
+                      onChange={(e) => {
+                        setUrl(e.target.value);
+                        setLinkError("");
+                      }}
+                      placeholder="https://…"
+                    />
+                  </label>
+                  <label className="field">
+                    リンクのタイトル
+                    <input
+                      value={linkTitle}
+                      onChange={(e) => setLinkTitle(e.target.value)}
+                    />
+                  </label>
+                  <label className="field">
+                    リンクのタグ
+                    <input
+                      value={linkTags}
+                      onChange={(e) => setLinkTags(e.target.value)}
+                      placeholder="カンマ区切り"
+                    />
+                  </label>
+                  <button className="primary">リンクを保存</button>
+                </form>
+              )}
+              <p className="fine-print">
+                リンクは元サイトで開きます。動画やサムネイルは自動取得しません。
+              </p>
+            </section>
+          </details>
+        </div>
+      </fieldset>
+      <fieldset disabled={busy} className="editor-dock" aria-label="メモの操作">
         <WritingTools
           note={note}
           selection={selection}
@@ -443,164 +759,7 @@ export default function Editor({
             }
           }}
         />
-        <div className="editor-checklist" hidden={!(note.todos || []).length}>
-          <Checklist
-            items={note.todos || []}
-            onChange={(todos) => change({ todos })}
-          />
-        </div>
-        <NoteReminderEditor
-          value={note.noteReminder}
-          onChange={(noteReminder) => change({ noteReminder })}
-        />
-        <details className="editor-organization">
-          <summary>分類・タグ</summary>{" "}
-          <div className="location-fields">
-            <label>
-              カテゴリー
-              <select
-                aria-label="カテゴリー"
-                value={note.categoryId}
-                onChange={(e) => {
-                  const f = folders.find(
-                    (f) => f.categoryId === e.target.value,
-                  );
-                  if (f) change({ categoryId: f.categoryId, folderId: f.id });
-                }}
-              >
-                {categories.map((c) => (
-                  <option
-                    key={c.id}
-                    value={c.id}
-                    disabled={!folders.some((f) => f.categoryId === c.id)}
-                  >
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              フォルダ
-              <select
-                aria-label="フォルダ"
-                value={note.folderId}
-                onChange={(e) => change({ folderId: e.target.value })}
-              >
-                {folders
-                  .filter((f) => f.categoryId === note.categoryId)
-                  .map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
-          </div>
-          <label className="field">
-            タグ{" "}
-            <input
-              aria-label="タグ"
-              placeholder="読書, アイデア（カンマ区切り）"
-              defaultValue={note.tags.join(", ")}
-              onChange={(e) => change({ tags: parseTags(e.target.value) })}
-            />
-          </label>
-        </details>
-        <details className="editor-extras">
-          <summary>画像・音声・表・リンク</summary>
-          <TableEditor
-            tables={note.tables || []}
-            onChange={(tables) => change({ tables })}
-          />
-          <Images
-            noteId={note.id}
-            onBusy={setImageBusy}
-            onChanged={(updatedAt) => {
-              if (updatedAt && updatedAt > current.current.updatedAt) {
-                current.current = { ...current.current, updatedAt };
-                setNote(current.current);
-              }
-              onSaved();
-            }}
-          />
-          <Recordings
-            noteId={note.id}
-            onBusy={setAudioBusy}
-            onChanged={(updatedAt) => {
-              if (updatedAt && updatedAt > current.current.updatedAt) {
-                current.current = { ...current.current, updatedAt };
-                setNote(current.current);
-              }
-              onSaved();
-            }}
-          />
-          <section className="links-section">
-            <div className="section-heading">
-              <h3>
-                <LinkIcon size={18} />
-                動画・Webリンク
-              </h3>
-              <button
-                className="text-button"
-                onClick={() => setLinkForm(!linkForm)}
-              >
-                <Plus size={17} />
-                追加
-              </button>
-            </div>
-            {!note.links.length && !linkForm && (
-              <p className="muted">見返したい動画やサイトを、メモと一緒に。</p>
-            )}
-            {linkForm && (
-              <form onSubmit={addLink} className="link-form">
-                {linkError && (
-                  <p role="alert" className="error">
-                    {linkError}
-                  </p>
-                )}
-                <label className="field">
-                  URL
-                  <input
-                    required
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    inputMode="url"
-                    enterKeyHint="next"
-                    type="url"
-                    value={url}
-                    onChange={(e) => {
-                      setUrl(e.target.value);
-                      setLinkError("");
-                    }}
-                    placeholder="https://…"
-                  />
-                </label>
-                <label className="field">
-                  リンクのタイトル
-                  <input
-                    value={linkTitle}
-                    onChange={(e) => setLinkTitle(e.target.value)}
-                  />
-                </label>
-                <label className="field">
-                  リンクのタグ
-                  <input
-                    value={linkTags}
-                    onChange={(e) => setLinkTags(e.target.value)}
-                    placeholder="カンマ区切り"
-                  />
-                </label>
-                <button className="primary">リンクを保存</button>
-              </form>
-            )}
-            <p className="fine-print">
-              リンクは元サイトで開きます。動画やサムネイルは自動取得しません。
-            </p>
-          </section>
-        </details>
-      </fieldset>
-      <div className="editor-dock" aria-label="メモの操作">
+
         <button
           type="button"
           className="icon-button"
@@ -633,7 +792,20 @@ export default function Editor({
           <SquareCheck size={21} />
         </button>
         <ShareAction note={note} disabled={busy || audioBusy || imageBusy} />
-      </div>
+        <button
+          className="text-button insert-toggle"
+          type="button"
+          aria-label="挿入・設定"
+          onPointerDown={() => rememberCursor()}
+          onClick={() => {
+            rememberCursor();
+            setInsertMenu(true);
+          }}
+        >
+          <Plus size={18} />
+          <span>挿入・設定</span>
+        </button>
+      </fieldset>
     </div>
   );
 }

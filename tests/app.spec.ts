@@ -16,7 +16,10 @@ test("folder CRUD, note autosave, reload, links and cross-category search", asyn
   ).toBeVisible();
   page.once("dialog", (d) => d.accept("来月の計画"));
   await page.getByRole("button", { name: "月の計画の名前変更" }).click();
-  await page.getByRole("button", { name: "来月の計画を上へ" }).click();
+  await page.getByRole("button", { name: "来月の計画 0 メモ" }).focus();
+  await page.keyboard.press("Space");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Enter");
   await page.getByRole("button", { name: "来月の計画 0 メモ" }).click();
   await page.getByRole("button", { name: "メモ作成", exact: true }).click();
   await openEditorSections(page);

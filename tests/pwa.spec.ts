@@ -416,3 +416,58 @@ test("installed cache accepts a shared URL offline and preserves it after restar
     "https://example.com/saved",
   );
 });
+
+test("offline lazy settings, folder ordering, separated ToDos and bulk restore preserve data", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/");
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();
+  await context.setOffline(true);
+  await page
+    .getByRole("button", { name: "クイックメモを作成", exact: true })
+    .click();
+  await page.getByLabel("タイトル", { exact: true }).fill("オフライン維持");
+  await page.getByLabel("本文", { exact: true }).fill("本文と分類を保持");
+  await page.getByRole("button", { name: "戻る", exact: true }).click();
+  await openFolders(page, "お金");
+  await expect(page.locator(".folder-name")).toHaveCount(4);
+  await page.locator(".folder-name").nth(1).focus();
+  await page.keyboard.press("Space");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".folder-name").first()).toContainText("貯金");
+  await expect(
+    page.getByRole("status").filter({ hasText: "並び順を保存しました。" }),
+  ).toBeAttached();
+  await page.reload();
+  await openFolders(page, "お金");
+  await expect(page.locator(".folder-name").first()).toContainText("貯金");
+  await page.getByRole("button", { name: "ToDo", exact: true }).click();
+  await page
+    .getByRole("button", { name: "クイックToDoを作成", exact: true })
+    .click();
+  await page.getByLabel("やること", { exact: true }).fill("オフラインToDo");
+  await page.getByRole("button", { name: "追加", exact: true }).click();
+  await page.reload();
+  await expect(page.locator(".note-row")).toHaveCount(1);
+  await page.locator(".note-row").click();
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "メモを削除", exact: true }).click();
+  await page.getByRole("button", { name: "設定を開く" }).click();
+  await page.getByRole("button", { name: "ごみ箱（1）", exact: true }).click();
+  await page.getByRole("button", { name: "選択", exact: true }).click();
+  await page.getByRole("button", { name: "すべて選択", exact: true }).click();
+  await page
+    .getByLabel("ごみ箱の一括操作")
+    .getByRole("button", { name: "復元", exact: true })
+    .click();
+  await expect(
+    page.getByText("ごみ箱は空です。", { exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(page.locator(".note-row")).toHaveCount(1);
+  await page.getByRole("button", { name: "ToDo", exact: true }).click();
+  await expect(page.locator(".todo-full")).toContainText("オフラインToDo");
+});

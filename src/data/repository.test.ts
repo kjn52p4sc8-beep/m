@@ -6,7 +6,7 @@ import {
   initialize,
   addFolder,
   renameFolder,
-  moveFolder,
+  reorderFolders,
   deleteFolder,
   newNote,
   saveNote,
@@ -25,7 +25,11 @@ it("creates, renames and reorders folders", async () => {
   await addFolder("money", "テスト");
   const f = (await db.folders.filter((f) => f.name === "テスト").toArray())[0];
   await renameFolder(f.id, "変更");
-  await moveFolder(f.id, -1);
+  const ids = (
+    await db.folders.where("categoryId").equals("money").sortBy("order")
+  ).map((f) => f.id);
+  [ids[3], ids[4]] = [ids[4], ids[3]];
+  await reorderFolders("money", ids);
   expect((await db.folders.get(f.id))?.name).toBe("変更");
   expect((await db.folders.get(f.id))?.order).toBe(3);
 });
@@ -129,4 +133,25 @@ it("updates the parent note timestamp for attachment and annotation changes", as
   await db.notes.update(note.id, { updatedAt: note.updatedAt });
   await removeAttachment("stamp-image");
   expect((await db.notes.get(note.id))!.updatedAt > note.updatedAt).toBe(true);
+});
+it("folder reorder preserves IDs and notes, and rejects stale or cross-category orders", async () => {
+  const folders = (await snapshot()).folders.filter(
+    (f) => f.categoryId === "money",
+  );
+  const n = newNote(folders[0]);
+  await saveNote(n);
+  const ids = folders.map((f) => f.id).reverse();
+  await reorderFolders("money", ids);
+  expect(
+    (await db.folders.where("categoryId").equals("money").sortBy("order")).map(
+      (f) => f.id,
+    ),
+  ).toEqual(ids);
+  expect(await db.notes.get(n.id)).toEqual(n);
+  await expect(
+    reorderFolders("money", [...ids.slice(1), ids[1]]),
+  ).rejects.toThrow();
+  await addFolder("money", "追加されたフォルダ");
+  await expect(reorderFolders("money", ids)).rejects.toThrow();
+  expect(await db.notes.get(n.id)).toEqual(n);
 });

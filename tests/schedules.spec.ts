@@ -107,12 +107,9 @@ test("ToDo completion cancels its timer and a notification opens the correspondi
     return (await r.snapshot()).notes[0].id;
   });
   await page.goto("/?note=" + encodeURIComponent(id));
-  await expect(page.locator(".editor")).toBeVisible();
+  await expect(page.locator(".todo-full")).toBeVisible();
   await expect(page).toHaveURL(/\/$/);
-  await page.locator(".editor-checklist .completed-items summary").click();
-  await expect(page.getByLabel("チェック項目", { exact: true })).toHaveValue(
-    "読むこと",
-  );
+  await page.locator(".todo-full .completed-items summary").click();
   await expect(
     page.getByRole("checkbox", { name: "読むことを完了", exact: true }),
   ).toBeChecked();
