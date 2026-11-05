@@ -471,3 +471,40 @@ test("offline lazy settings, folder ordering, separated ToDos and bulk restore p
   await page.getByRole("button", { name: "ToDo", exact: true }).click();
   await expect(page.locator(".todo-full")).toContainText("オフラインToDo");
 });
+
+test("offline Undo and Redo preserve the memo and save the restored text across restart", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/");
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();
+  await page
+    .getByRole("button", { name: "クイックメモを作成", exact: true })
+    .click();
+  await page
+    .getByLabel("タイトル", { exact: true })
+    .fill("Undoをオフラインで確認");
+  const body = page.getByLabel("本文", { exact: true });
+  await body.fill("残す本文");
+  await page.getByRole("button", { name: "戻る", exact: true }).click();
+  await context.setOffline(true);
+  await page.locator(".note-row").click();
+  await body.focus();
+  await body.press("End");
+  await body.pressSequentially(" edit", { delay: 20 });
+  await page.getByRole("button", { name: "取り消す", exact: true }).click();
+  await expect(body).toHaveValue("残す本文");
+  await page.getByRole("button", { name: "挿入・設定", exact: true }).click();
+  await page.getByRole("button", { name: "やり直す", exact: true }).click();
+  await expect(body).toHaveValue("残す本文 edit");
+  await page.getByRole("button", { name: "取り消す", exact: true }).click();
+  await page.getByRole("button", { name: "戻る", exact: true }).click();
+  await page.reload();
+  await expect(page.locator(".note-row")).toHaveCount(1);
+  await page.locator(".note-row").click();
+  await expect(body).toHaveValue("残す本文");
+  await expect(
+    page.getByRole("button", { name: "取り消す", exact: true }),
+  ).toBeDisabled();
+});

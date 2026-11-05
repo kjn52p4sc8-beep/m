@@ -59,6 +59,8 @@ export default function WritingTools({
           type="button"
           aria-label="取り消す"
           disabled={!canUndo}
+          title="元に戻す"
+          onPointerDown={(e) => e.preventDefault()}
           onClick={onUndo}
         >
           <RotateCcw size={20} />

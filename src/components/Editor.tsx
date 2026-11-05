@@ -1,4 +1,9 @@
 import Modal from "./Modal";
+import {
+  EditHistory,
+  type EditCursor,
+  type EditState,
+} from "../data/editHistory";
 import SavedLink from "./SavedLink";
 import { canonicalLink } from "../data/linkPreview";
 import NoteReminderEditor from "./NoteReminderEditor";
@@ -110,14 +115,19 @@ export default function Editor({
       return "black";
     }
   });
-  const [undo, setUndo] = useState<Partial<Note>[]>([]);
+  const history = useRef(new EditHistory());
+  const titleInput = useRef<HTMLInputElement>(null);
+  const beforeCursor = useRef<EditCursor | null>(null);
+  const lastCursor = useRef<EditCursor>({
+    field: "body",
+    start: 0,
+    end: 0,
+    direction: "none",
+    scroll: 0,
+  });
   const composing = useRef(false);
   const [compositionActive, setCompositionActive] = useState(false);
-  const compositionBase = useRef<{
-    body: string;
-    bodyColors: Note["bodyColors"];
-    selection: [number, number];
-  } | null>(null);
+  const compositionBase = useRef<EditState | null>(null);
   const paintedBody = useMemo(
     () => colorParts(note.body, note.bodyColors || []),
     [note.body, note.bodyColors],
@@ -172,19 +182,6 @@ export default function Editor({
     return queue.current;
   }
   function change(patch: Partial<Note>, remember = true) {
-    if (
-      remember &&
-      !composing.current &&
-      (patch.body !== undefined || patch.bodyColors !== undefined)
-    ) {
-      setUndo((history) => [
-        ...history.slice(-49),
-        {
-          body: current.current.body,
-          bodyColors: current.current.bodyColors || [],
-        },
-      ]);
-    }
     if (patch.body !== undefined && patch.bodyColors === undefined)
       patch.bodyColors = editColors(
         current.current.body,
@@ -197,6 +194,20 @@ export default function Editor({
       ...patch,
       updatedAt: new Date().toISOString(),
     };
+    if (
+      remember &&
+      !composing.current &&
+      (patch.title !== undefined ||
+        patch.body !== undefined ||
+        patch.bodyColors !== undefined)
+    ) {
+      const cursor = readCursor(patch.title !== undefined ? "title" : "body");
+      history.current.record(
+        editState(current.current, cursor),
+        editState(next, cursor),
+        "format",
+      );
+    }
     current.current = next;
     setNote(next);
     dirty.current = true;
@@ -215,15 +226,188 @@ export default function Editor({
         void persist();
       }, 500);
   }
-  useEffect(() => {
-    const input = bodyInput.current;
-    const capture = () => {
-      if (input)
-        beforeSelection.current = [input.selectionStart, input.selectionEnd];
+  function readCursor(
+    field: "title" | "body",
+    el = field === "body" ? bodyInput.current : titleInput.current,
+  ): EditCursor {
+    return {
+      field,
+      start: el?.selectionStart ?? 0,
+      end: el?.selectionEnd ?? 0,
+      direction: el?.selectionDirection || "none",
+      scroll: el?.scrollTop || 0,
     };
-    input?.addEventListener("beforeinput", capture);
-    return () => input?.removeEventListener("beforeinput", capture);
+  }
+  function editState(value: Note, cursor: EditCursor): EditState {
+    return {
+      title: value.title,
+      body: value.body,
+      bodyColors: value.bodyColors || [],
+      cursor: { ...cursor },
+    };
+  }
+  function applyHistory(redo = false) {
+    if (composing.current) return;
+    const value = redo ? history.current.redo() : history.current.undo();
+    if (!value) return;
+    flushSync(() =>
+      change(
+        { title: value.title, body: value.body, bodyColors: value.bodyColors },
+        false,
+      ),
+    );
+    const c = value.cursor,
+      el = c.field === "body" ? bodyInput.current : titleInput.current;
+    el?.focus({ preventScroll: true });
+    el?.setSelectionRange(c.start, c.end, c.direction);
+    if (el) el.scrollTop = c.scroll;
+    if (c.field === "body") setSelection([c.start, c.end]);
+    lastCursor.current = { ...c };
+    beforeCursor.current = null;
+    beforeSelection.current = undefined;
+  }
+  const historyAction = useRef(applyHistory);
+  historyAction.current = applyHistory;
+  useEffect(() => {
+    const inputs = [bodyInput.current, titleInput.current];
+    const capture = (event: Event) => {
+      const e = event as InputEvent;
+      if (
+        (e.inputType === "historyUndo" || e.inputType === "historyRedo") &&
+        e.cancelable
+      ) {
+        e.preventDefault();
+        historyAction.current(e.inputType === "historyRedo");
+        return;
+      }
+      const el = e.target as HTMLTextAreaElement | HTMLInputElement;
+      const field = el === bodyInput.current ? "body" : "title";
+      beforeCursor.current = readCursor(field, el);
+      if (field === "body")
+        beforeSelection.current = [
+          el.selectionStart || 0,
+          el.selectionEnd || 0,
+        ];
+    };
+    inputs.forEach((input) => input?.addEventListener("beforeinput", capture));
+    return () =>
+      inputs.forEach((input) =>
+        input?.removeEventListener("beforeinput", capture),
+      );
   }, []);
+  function textChanged(
+    field: "title" | "body",
+    el: HTMLTextAreaElement | HTMLInputElement,
+    inputType: string,
+  ) {
+    if (inputType === "historyUndo" || inputType === "historyRedo") {
+      applyHistory(inputType === "historyRedo");
+      el.value = current.current[field];
+      return;
+    }
+    if (el.value === current.current[field]) return;
+    const cursor = readCursor(field, el);
+    const before =
+      beforeCursor.current?.field === field
+        ? beforeCursor.current
+        : lastCursor.current.field === field
+          ? lastCursor.current
+          : cursor;
+    const previous = editState(current.current, before);
+    const patch =
+      field === "title"
+        ? { title: el.value }
+        : {
+            body: el.value,
+            bodyColors: editColors(
+              current.current.body,
+              el.value,
+              current.current.bodyColors || [],
+              pen,
+              beforeSelection.current,
+              inputType,
+            ),
+          };
+    if (!composing.current)
+      history.current.record(
+        previous,
+        editState({ ...current.current, ...patch }, cursor),
+        inputType,
+      );
+    change(patch, false);
+    lastCursor.current = cursor;
+    beforeCursor.current = null;
+    beforeSelection.current = undefined;
+  }
+  function startComposition(
+    field: "title" | "body",
+    el: HTMLTextAreaElement | HTMLInputElement,
+  ) {
+    history.current.breakGroup();
+    compositionBase.current = editState(current.current, readCursor(field, el));
+    composing.current = true;
+    setCompositionActive(true);
+    clearTimeout(timer.current);
+  }
+  function endComposition(
+    field: "title" | "body",
+    el: HTMLTextAreaElement | HTMLInputElement,
+  ) {
+    const previous = compositionBase.current;
+    composing.current = false;
+    setCompositionActive(false);
+    compositionBase.current = null;
+    const cursor = readCursor(field, el);
+    const patch =
+      field === "title"
+        ? { title: el.value }
+        : {
+            body: el.value,
+            bodyColors: previous
+              ? editColors(
+                  previous.body,
+                  el.value,
+                  previous.bodyColors,
+                  pen,
+                  [previous.cursor.start, previous.cursor.end],
+                  "insertCompositionText",
+                )
+              : current.current.bodyColors,
+          };
+    if (previous)
+      history.current.record(
+        previous,
+        editState({ ...current.current, ...patch }, cursor),
+        "composition",
+      );
+    change(patch, false);
+    lastCursor.current = cursor;
+    beforeCursor.current = null;
+    beforeSelection.current = undefined;
+  }
+  function textKeyDown(
+    e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) {
+    if (
+      (e.metaKey || e.ctrlKey) &&
+      !e.altKey &&
+      ["z", "y"].includes(e.key.toLowerCase())
+    ) {
+      if (e.nativeEvent.isComposing || composing.current) return;
+      e.preventDefault();
+      applyHistory(e.shiftKey || e.key.toLowerCase() === "y");
+    } else if (
+      [
+        "ArrowLeft",
+        "ArrowRight",
+        "ArrowUp",
+        "ArrowDown",
+        "Home",
+        "End",
+      ].includes(e.key)
+    )
+      history.current.breakGroup();
+  }
   useEffect(() => {
     if (isNew) {
       try {
@@ -315,6 +499,16 @@ export default function Editor({
             >
               画像・音声・表・リンク
             </button>
+            <button
+              className="text-button"
+              disabled={!history.current.canRedo || compositionActive}
+              onClick={() => {
+                closeInsertMenu();
+                applyHistory(true);
+              }}
+            >
+              やり直す
+            </button>
             <button className="text-button" onClick={closeInsertMenu}>
               閉じる
             </button>
@@ -397,15 +591,22 @@ export default function Editor({
           aria-label="タイトル"
           placeholder="タイトルを入力"
           value={note.title}
-          onCompositionStart={() => {
-            composing.current = true;
-            clearTimeout(timer.current);
+          ref={titleInput}
+          onCompositionStart={(e) => startComposition("title", e.currentTarget)}
+          onCompositionEnd={(e) => endComposition("title", e.currentTarget)}
+          onChange={(e) =>
+            textChanged(
+              "title",
+              e.currentTarget,
+              (e.nativeEvent as InputEvent).inputType,
+            )
+          }
+          onSelect={(e) => {
+            lastCursor.current = readCursor("title", e.currentTarget);
           }}
-          onCompositionEnd={(e) => {
-            composing.current = false;
-            change({ title: e.currentTarget.value });
-          }}
-          onChange={(e) => change({ title: e.target.value })}
+          onPointerDown={() => history.current.breakGroup()}
+          onBlur={() => history.current.breakGroup()}
+          onKeyDown={textKeyDown}
         />
         <div className="note-date">
           作成 {new Date(note.createdAt).toLocaleDateString("ja-JP")} · 更新{" "}
@@ -416,7 +617,7 @@ export default function Editor({
         </div>
         <FinanceEditor note={note} onChange={change} />
         <div
-          className={`colored-body ${compositionActive ? "is-composing" : ""}`}
+          className={`colored-body ${compositionActive && compositionBase.current?.cursor.field === "body" ? "is-composing" : ""}`}
         >
           <pre ref={colorLayer} className="body-color-layer" aria-hidden="true">
             {paintedBody.map((p, i) => (
@@ -429,51 +630,13 @@ export default function Editor({
           <textarea
             className="note-body-input"
             ref={bodyInput}
-            onCompositionStart={(e) => {
-              composing.current = true;
-              setCompositionActive(true);
-              clearTimeout(timer.current);
-              compositionBase.current = {
-                body: current.current.body,
-                bodyColors: current.current.bodyColors,
-                selection: [
-                  e.currentTarget.selectionStart,
-                  e.currentTarget.selectionEnd,
-                ],
-              };
-            }}
-            onCompositionEnd={(e) => {
-              const previous = compositionBase.current,
-                value = e.currentTarget.value;
-              composing.current = false;
-              setCompositionActive(false);
-              compositionBase.current = null;
-              if (previous && previous.body !== value)
-                setUndo((history) => [
-                  ...history.slice(-49),
-                  {
-                    body: previous.body,
-                    bodyColors: previous.bodyColors || [],
-                  },
-                ]);
-              change(
-                {
-                  body: value,
-                  bodyColors: previous
-                    ? editColors(
-                        previous.body,
-                        value,
-                        previous.bodyColors || [],
-                        pen,
-                        previous.selection,
-                        "insertCompositionText",
-                      )
-                    : current.current.bodyColors,
-                },
-                false,
-              );
-              beforeSelection.current = undefined;
-            }}
+            onCompositionStart={(e) =>
+              startComposition("body", e.currentTarget)
+            }
+            onCompositionEnd={(e) => endComposition("body", e.currentTarget)}
+            onPointerDown={() => history.current.breakGroup()}
+            onBlur={() => history.current.breakGroup()}
+            onKeyDown={textKeyDown}
             onPaste={(e) => {
               try {
                 const incoming = captureContent(
@@ -498,39 +661,26 @@ export default function Editor({
             aria-label="本文"
             placeholder="メモを書く"
             value={note.body}
-            onBeforeInput={(e) => {
-              beforeSelection.current = [
-                e.currentTarget.selectionStart,
-                e.currentTarget.selectionEnd,
-              ];
-            }}
-            onSelect={(e) =>
+            onSelect={(e) => {
+              lastCursor.current = readCursor("body", e.currentTarget);
               setSelection([
                 e.currentTarget.selectionStart,
                 e.currentTarget.selectionEnd,
-              ])
-            }
+              ]);
+            }}
             onScroll={(e) => {
               if (colorLayer.current) {
                 colorLayer.current.scrollTop = e.currentTarget.scrollTop;
                 colorLayer.current.scrollLeft = e.currentTarget.scrollLeft;
               }
             }}
-            onChange={(e) => {
-              if (e.target.value === current.current.body) return;
-              change({
-                body: e.target.value,
-                bodyColors: editColors(
-                  current.current.body,
-                  e.target.value,
-                  current.current.bodyColors || [],
-                  pen,
-                  beforeSelection.current,
-                  (e.nativeEvent as InputEvent).inputType,
-                ),
-              });
-              beforeSelection.current = undefined;
-            }}
+            onChange={(e) =>
+              textChanged(
+                "body",
+                e.currentTarget,
+                (e.nativeEvent as InputEvent).inputType,
+              )
+            }
           />
         </div>
         {!!note.links.length && (
@@ -740,6 +890,7 @@ export default function Editor({
           onSelection={setSelection}
           pen={pen}
           onPen={(c) => {
+            history.current.breakGroup();
             setPen(c);
             try {
               localStorage.setItem("my-memo-pen", c);
@@ -750,14 +901,8 @@ export default function Editor({
             }
           }}
           onChange={change}
-          canUndo={!!undo.length}
-          onUndo={() => {
-            const previous = undo.at(-1);
-            if (previous) {
-              change(previous, false);
-              setUndo(undo.slice(0, -1));
-            }
-          }}
+          canUndo={history.current.canUndo && !compositionActive}
+          onUndo={() => applyHistory()}
         />
 
         <button
