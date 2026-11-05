@@ -175,7 +175,6 @@ export default function App() {
     await refresh();
     setTodoDialog(false);
     setTodoQuery("");
-    go("todo");
   }
   const [receivedShare, setReceivedShare] = useState(() =>
     incomingShare(location.search, location.pathname),

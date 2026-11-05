@@ -176,15 +176,30 @@ test("new service worker shows an update button and preserves data after activat
     await page
       .getByRole("textbox", { name: "タイトル", exact: true })
       .fill("更新で残るメモ");
+    await page
+      .getByLabel("本文", { exact: true })
+      .fill("更新が届いても編集中の本文を保持");
+    revision = 2;
+    await page.evaluate(async () => {
+      await (await navigator.serviceWorker.getRegistration())!.update();
+    });
+    await expect
+      .poll(() =>
+        page.evaluate(
+          async () =>
+            !!(await navigator.serviceWorker.getRegistration())?.waiting,
+        ),
+      )
+      .toBe(true);
+    await expect(page.getByLabel("本文", { exact: true })).toHaveValue(
+      "更新が届いても編集中の本文を保持",
+    );
     await page.getByRole("button", { name: "戻る", exact: true }).click();
     await page.getByRole("button", { name: "設定を開く" }).click();
     await page
       .getByRole("button", { name: "オフライン・更新", exact: true })
       .click();
-    revision = 2;
-    await page
-      .getByRole("button", { name: "オフライン準備・更新を確認" })
-      .click();
+    // The waiting update is visible immediately on opening settings.
     await expect(
       page.getByRole("button", { name: "更新して再読み込み" }),
     ).toBeVisible();
@@ -507,4 +522,66 @@ test("offline Undo and Redo preserve the memo and save the restored text across 
   await expect(
     page.getByRole("button", { name: "取り消す", exact: true }),
   ).toBeDisabled();
+});
+
+test("install metadata, notebook icons and safe-area ToDo navigation are available offline", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/");
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  const manifest = await page.evaluate(async () =>
+    (await fetch("/manifest.webmanifest")).json(),
+  );
+  expect(manifest).toMatchObject({
+    name: "My Memo",
+    short_name: "My Memo",
+    display: "standalone",
+    start_url: "/",
+    scope: "/",
+  });
+  await expect(
+    page.locator('meta[name="apple-mobile-web-app-title"]'),
+  ).toHaveAttribute("content", "My Memo");
+  await expect(
+    page.locator('meta[name="apple-mobile-web-app-capable"]'),
+  ).toHaveAttribute("content", "yes");
+  await page.reload();
+  await context.setOffline(true);
+  await page.reload();
+  const dimensions = await page.evaluate(async () => {
+    const result = [];
+    for (const src of [
+      "/apple-touch-icon.png",
+      "/icon-192.png",
+      "/icon-512.png",
+    ]) {
+      const img = new Image();
+      img.src = src;
+      await img.decode();
+      result.push([img.naturalWidth, img.naturalHeight]);
+    }
+    return result;
+  });
+  expect(dimensions).toEqual([
+    [180, 180],
+    [192, 192],
+    [512, 512],
+  ]);
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty("--safe-bottom", "34px");
+  });
+  const todo = page.getByRole("button", { name: "ToDo", exact: true });
+  await expect(todo).toBeVisible();
+  await todo.click();
+  await page
+    .getByLabel("やること", { exact: true })
+    .fill("ホーム画面追加後も使うToDo");
+  await page.getByRole("button", { name: "追加", exact: true }).click();
+  await expect(page.locator(".todo-title")).toHaveCount(1);
+  await page.reload();
+  await page.getByRole("button", { name: "ToDo", exact: true }).click();
+  await expect(page.locator(".todo-title")).toContainText(
+    "ホーム画面追加後も使うToDo",
+  );
 });

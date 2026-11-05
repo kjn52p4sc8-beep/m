@@ -6,14 +6,37 @@ export default function PwaSettings() {
     [waiting, setWaiting] = useState<ServiceWorker | null>(null),
     [checking, setChecking] = useState(false),
     [recovery, setRecovery] = useState(false),
-    [copyStatus, setCopyStatus] = useState("");
+    [copyStatus, setCopyStatus] = useState(""),
+    [updating, setUpdating] = useState(false);
+  const mounted = useRef(false),
+    checkLock = useRef(false);
+  const activating = useRef(false),
+    updateCleanup = useRef<() => void>(() => {});
   const cleanup = useRef<() => void>(() => {});
   useEffect(() => {
+    mounted.current = true;
+    let active = true;
+    try {
+      if (window.isSecureContext && "serviceWorker" in navigator)
+        void navigator.serviceWorker
+          .getRegistration()
+          .then((reg) => {
+            if (active && reg) observe(reg);
+          })
+          .catch(() => {
+            /* The explicit check provides recovery guidance. */
+          });
+    } catch {
+      /* Restricted browsers keep the manual recovery action. */
+    }
     const update = () => setOffline(!navigator.onLine);
     window.addEventListener("online", update);
     window.addEventListener("offline", update);
     return () => {
+      active = false;
+      mounted.current = false;
       cleanup.current();
+      updateCleanup.current();
       window.removeEventListener("online", update);
       window.removeEventListener("offline", update);
     };
@@ -50,7 +73,8 @@ export default function PwaSettings() {
     };
   }
   async function check() {
-    if (checking) return;
+    if (checkLock.current) return;
+    checkLock.current = true;
     setChecking(true);
     setRecovery(false);
     setCopyStatus("");
@@ -74,6 +98,7 @@ export default function PwaSettings() {
         );
         return;
       }
+      if (!mounted.current) return;
       observe(reg);
       if (!navigator.onLine) {
         setStatus(
@@ -103,7 +128,41 @@ export default function PwaSettings() {
       );
       setRecovery(true);
     } finally {
-      setChecking(false);
+      checkLock.current = false;
+      if (mounted.current) setChecking(false);
+    }
+  }
+  function applyUpdate() {
+    if (!waiting || activating.current) return;
+    if (!confirm("新しいバージョンに更新して再読み込みしますか？")) return;
+    activating.current = true;
+    setUpdating(true);
+    const changed = () => {
+      updateCleanup.current();
+      location.reload();
+    };
+    const timer = setTimeout(() => {
+      updateCleanup.current();
+      activating.current = false;
+      setUpdating(false);
+      setStatus(
+        "更新の完了を確認できませんでした。メモを保存してから再読み込みしてください。",
+      );
+    }, 15000);
+    updateCleanup.current = () => {
+      clearTimeout(timer);
+      navigator.serviceWorker.removeEventListener("controllerchange", changed);
+    };
+    try {
+      navigator.serviceWorker.addEventListener("controllerchange", changed, {
+        once: true,
+      });
+      waiting.postMessage("ACTIVATE_UPDATE");
+    } catch {
+      updateCleanup.current();
+      activating.current = false;
+      setUpdating(false);
+      setStatus("更新を開始できませんでした。もう一度お試しください。");
     }
   }
   return (
@@ -171,20 +230,8 @@ export default function PwaSettings() {
         </div>
       )}
       {waiting && (
-        <button
-          className="primary"
-          onClick={() => {
-            if (confirm("新しいバージョンに更新して再読み込みしますか？")) {
-              navigator.serviceWorker.addEventListener(
-                "controllerchange",
-                () => location.reload(),
-                { once: true },
-              );
-              waiting.postMessage("ACTIVATE_UPDATE");
-            }
-          }}
-        >
-          更新して再読み込み
+        <button className="primary" disabled={updating} onClick={applyUpdate}>
+          {updating ? "更新中…" : "更新して再読み込み"}
         </button>
       )}
     </section>

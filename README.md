@@ -1,6 +1,6 @@
 # My Memo
 
-iPhone Safari向けの日本語メモアプリ。既存アプリを拡張した0.10.1です。React / TypeScript / Vite / Tailwind CSS / Dexie（IndexedDB）を使用し、サーバー・ログインなしで端末内に保存します。
+iPhone Safari向けの日本語メモアプリ。既存アプリを拡張した0.10.2です。React / TypeScript / Vite / Tailwind CSS / Dexie（IndexedDB）を使用し、サーバー・ログインなしで端末内に保存します。
 
 ## 起動と検証
 
@@ -105,7 +105,7 @@ Safariの共有メニューから「ホーム画面に追加」。公開前に�
 - `src/style.css`, `refresh.css`, `src/platform/`：表示・セーフエリア・キーボード対応。
 - `src/data/*.test.ts`, `tests/`：単体・操作・PWAテスト。
 
-最新の検証結果・制約・変更ファイルは [0.10.1作業報告](docs/releases/0.10.1-undo.md)。[0.10.0作業報告](docs/releases/0.10.0-ux-v2.md)も保管しています。[0.9.0作業報告](docs/releases/0.9.0-integrated.md)も保管しています。[0.8.0作業報告](docs/releases/0.8.0-phase2-3.md)も保管しています。[0.6.0作業報告](docs/releases/0.6.0-simple-ui.md)も保管しています。[0.5.0作業報告](docs/releases/0.5.0-workflow.md)も保管しています。以前の機能追加は [0.4.0作業報告](docs/implementation/release-0.4.md)。以前の点検記録は [AUDIT.md](AUDIT.md)、デザイン検討・段階実装記録は `docs/design/` と `docs/implementation/refresh-progress.md` に保存しています。
+最新の検証結果・制約・変更ファイルは [0.10.2品質点検](docs/releases/0.10.2-quality.md)。[0.10.1作業報告](docs/releases/0.10.1-undo.md)も保管しています。[0.10.0作業報告](docs/releases/0.10.0-ux-v2.md)も保管しています。[0.9.0作業報告](docs/releases/0.9.0-integrated.md)も保管しています。[0.8.0作業報告](docs/releases/0.8.0-phase2-3.md)も保管しています。[0.6.0作業報告](docs/releases/0.6.0-simple-ui.md)も保管しています。[0.5.0作業報告](docs/releases/0.5.0-workflow.md)も保管しています。以前の機能追加は [0.4.0作業報告](docs/implementation/release-0.4.md)。以前の点検記録は [AUDIT.md](AUDIT.md)、デザイン検討・段階実装記録は `docs/design/` と `docs/implementation/refresh-progress.md` に保存しています。
 
 ## 0.4.1：オフライン機能の案内
 
@@ -155,3 +155,10 @@ HTTPSの安全な接続とService Worker対応を別々に判定します。HTTP
 - 文字色・取り消し・背景色・チェックリスト・共有は下部の小さいツール列から使えます。本文の高さを表示領域に合わせ、文字数を下部に表示します。
 - 日本語変換中は入力欄の標準描画を使い、文字色用の重ね表示を一時的に隠します。DBへの自動保存は確定後に再開。途中の入力は従来どおり下書きとして保持し、確定した変換を1回で取り消せます。実際のiPhone変換候補・予測変換は実機確認が必要です。
 - DB v11 / JSON v10を維持。データ形式変更・一括変換・初期化はありません。コードバックアップは `backup/pre-v2-20261103`、端末データは設定 → バックアップからJSONを保存してください。
+
+## 0.10.2：品質点検・PWA更新
+
+- ToDoを保存中に次の入力を始めても消さず、画面移動後に保存が完了しても強制的にToDoへ戻りません。連打・通知許可の遅れにも対応します。
+- 文字数の詳細は開いた時だけ計算し、文字分割の配列生成を削減しました。通常カウントは従来どおりリアルタイムです。
+- PWAは画面復帰・オンライン復帰時に5分以上間隔を空けて更新を確認します。設定で待機中の更新を表示し、確認後に適用します。編集中の自動更新・自動再読み込みは行いません。
+- アプリのコードに「Powered by Netlify」はありません。公開サイトの表示元はこの環境から未確認です。CSSで隠す変更はしていません。[バッジの確認手順と未検証項目](docs/releases/0.10.2-quality.md)を参照してください。

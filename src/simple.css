@@ -876,3 +876,11 @@ body[data-scroll-lock] .editor-dock {
 .trash-row[class*="memo-color-"] {
   background: var(--memo-bg);
 }
+
+/* Prevent edits being cleared by an in-flight ToDo save. */
+.todo-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}

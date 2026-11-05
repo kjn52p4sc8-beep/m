@@ -26,6 +26,7 @@ export default function SwipeNote({
 }) {
   const [menu, setMenu] = useState(false),
     [palette, setPalette] = useState(false);
+  const lock = useRef(false);
   const hold = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const stopHold = () => clearTimeout(hold.current);
   useEffect(() => () => stopHold(), []);
@@ -41,13 +42,18 @@ export default function SwipeNote({
   const resting = open === "delete" ? -88 : open === "color" ? 88 : 0;
   const offset = drag ?? resting;
   async function remove() {
-    if (!confirm(`「${title}」をごみ箱へ移しますか？ 後から復元できます。`))
+    if (lock.current) return;
+    lock.current = true;
+    if (!confirm(`「${title}」をごみ箱へ移しますか？ 後から復元できます。`)) {
+      lock.current = false;
       return;
+    }
     setBusy(true);
     try {
       await onDelete();
       onReveal(null);
     } finally {
+      lock.current = false;
       setBusy(false);
     }
   }
@@ -92,11 +98,14 @@ export default function SwipeNote({
               className="text-button"
               disabled={busy}
               onClick={async () => {
+                if (lock.current) return;
+                lock.current = true;
                 setBusy(true);
                 try {
                   await onPin();
                   setMenu(false);
                 } finally {
+                  lock.current = false;
                   setBusy(false);
                 }
               }}
@@ -144,6 +153,7 @@ export default function SwipeNote({
           if (!e.isPrimary) {
             stopHold();
             gesture.current = null;
+            setDrag(null);
             return;
           }
           if (e.button !== 0 || e.clientX < 20) return;

@@ -1,8 +1,12 @@
+let segmenter: Intl.Segmenter | undefined;
 export function characterCount(value: string) {
-  if (typeof Intl.Segmenter === "function")
-    return Array.from(
-      new Intl.Segmenter("ja", { granularity: "grapheme" }).segment(value),
-    ).length;
+  if (!value) return 0;
+  if (typeof Intl.Segmenter === "function") {
+    segmenter ??= new Intl.Segmenter("ja", { granularity: "grapheme" });
+    let count = 0;
+    for (const _part of segmenter.segment(value)) count++;
+    return count;
+  }
   // Compatibility for older WebKit: combine marks, emoji modifiers/ZWJ,
   // regional-indicator pairs, variation selectors, tag sequences and CRLF.
   let count = 0,

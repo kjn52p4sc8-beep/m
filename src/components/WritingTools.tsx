@@ -1,3 +1,4 @@
+import { characterCount } from "../data/text";
 import { PenLine, RotateCcw } from "lucide-react";
 import { useState, useMemo, type RefObject } from "react";
 import type { Note } from "../data/model";
@@ -33,10 +34,15 @@ export default function WritingTools({
 }) {
   const [palette, setPalette] = useState(false),
     [details, setDetails] = useState(false);
-  const c = useMemo(
-      () => counts(note.body, note.body.slice(...selection)),
-      [note.body, selection],
-    ),
+  const normal = useMemo(
+    () => characterCount(note.body.replace(/\r\n?|\n/g, "")),
+    [note.body],
+  );
+  const detailCounts = useMemo(
+    () => (details ? counts(note.body, note.body.slice(...selection)) : null),
+    [details, note.body, selection[0], selection[1]],
+  );
+  const c = detailCounts || { normal, all: 0, compact: 0, selected: 0 },
     limit = note.characterLimit;
   return (
     <div className="writing-tools">

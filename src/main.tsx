@@ -10,10 +10,14 @@ createRoot(document.getElementById("root")!).render(
   </React.StrictMode>,
 );
 
-import { registerPwa } from "./pwa";
+import { registerPwa, watchPwaUpdates } from "./pwa";
 if (import.meta.env.PROD)
   window.addEventListener("load", () => {
-    void registerPwa().catch(() => {
-      /* Settings offers retry/status without disrupting editing. */
-    });
+    void registerPwa()
+      .then((reg) => {
+        if (reg) watchPwaUpdates(reg);
+      })
+      .catch(() => {
+        /* Settings offers retry/status without disrupting editing. */
+      });
   });

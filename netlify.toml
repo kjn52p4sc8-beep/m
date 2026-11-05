@@ -20,3 +20,14 @@
   from = "/share-target"
   to = "/index.html"
   status = 200
+
+# Revalidate the launch document and install metadata without clearing site data.
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Cache-Control = "no-cache"

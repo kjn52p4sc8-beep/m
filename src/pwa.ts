@@ -12,3 +12,39 @@ export async function registerPwa() {
     return null;
   return navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" });
 }
+
+// Check on return, not by polling. Finding an update never activates or reloads it.
+export function watchPwaUpdates(
+  reg: ServiceWorkerRegistration,
+  now = Date.now,
+) {
+  let lastCheck = now(),
+    checking = false,
+    disposed = false;
+  const check = async () => {
+    if (
+      disposed ||
+      checking ||
+      document.visibilityState !== "visible" ||
+      !navigator.onLine ||
+      now() - lastCheck < 5 * 60_000
+    )
+      return;
+    checking = true;
+    lastCheck = now();
+    try {
+      await reg.update();
+    } catch {
+      lastCheck = 0;
+    } finally {
+      checking = false;
+    }
+  };
+  document.addEventListener("visibilitychange", check);
+  window.addEventListener("online", check);
+  return () => {
+    disposed = true;
+    document.removeEventListener("visibilitychange", check);
+    window.removeEventListener("online", check);
+  };
+}
