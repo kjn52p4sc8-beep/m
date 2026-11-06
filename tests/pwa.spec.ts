@@ -585,3 +585,44 @@ test("install metadata, notebook icons and safe-area ToDo navigation are availab
     "ホーム画面追加後も使うToDo",
   );
 });
+
+test("AI sheet loads offline from the PWA cache and keeps normal editing available", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/");
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();
+  await page
+    .getByRole("button", { name: "クイックメモを作成", exact: true })
+    .click();
+  await page
+    .getByLabel("本文", { exact: true })
+    .fill("オフラインでも原文を残す");
+  await page.getByRole("button", { name: "戻る", exact: true }).click();
+  await context.setOffline(true);
+  await page.reload();
+  await page.locator(".note-row").click();
+  await page.getByRole("button", { name: "AIアシスタントを開く" }).click();
+  await page.getByRole("button", { name: "要約する", exact: true }).click();
+  await expect(
+    page.getByText(
+      "AIの接続を確認できません。オンライン接続とサーバー設定を確認してください。",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "この文章を送信して生成" }),
+  ).toBeDisabled();
+  await page.getByRole("button", { name: "AIを閉じる", exact: true }).click();
+  await expect(page.getByLabel("本文", { exact: true })).toHaveValue(
+    "オフラインでも原文を残す",
+  );
+  await page.getByLabel("本文", { exact: true }).fill("オフラインで追記");
+  await page.getByRole("button", { name: "戻る", exact: true }).click();
+  await page.reload();
+  await page.locator(".note-row").click();
+  await expect(page.getByLabel("本文", { exact: true })).toHaveValue(
+    "オフラインで追記",
+  );
+});

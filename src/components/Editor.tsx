@@ -1,4 +1,5 @@
 import Modal from "./Modal";
+import { selectionRequest, applyText, type AIText } from "../ai/text";
 import {
   EditHistory,
   type EditCursor,
@@ -11,9 +12,10 @@ import { flushSync } from "react-dom";
 import NoteColorPalette from "./NoteColorPalette";
 import ShareAction from "./ShareAction";
 import { captureContent } from "../data/sharing";
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, lazy, Suspense } from "react";
 import {
   Palette,
+  Sparkles,
   SquareCheck,
   ArrowLeft,
   Trash2,
@@ -23,7 +25,7 @@ import {
   Link as LinkIcon,
 } from "lucide-react";
 import type { Category, Folder, Note } from "../data/model";
-import { saveNote } from "../data/repository";
+import { saveNote, applyAIEdit, getNote } from "../data/repository";
 import FinanceEditor from "./FinanceEditor";
 import WritingTools from "./WritingTools";
 import {
@@ -38,6 +40,7 @@ import Recordings from "./Recordings";
 import { writeDraft, clearSavedDraft, recoverDraft } from "../data/drafts";
 import Images from "./Images";
 import { safeUrl, parseTags } from "../data/search";
+const AIAssistant = lazy(() => import("./AIAssistant"));
 export default function Editor({
   initial,
   isNew = false,
@@ -67,6 +70,122 @@ export default function Editor({
     [url, setUrl] = useState(""),
     [linkTitle, setLinkTitle] = useState(""),
     [linkTags, setLinkTags] = useState("");
+  const [ai, setAI] = useState<
+    (ReturnType<typeof selectionRequest> & { original: Note }) | null
+  >(null);
+  const aiApplying = useRef(false);
+  function openAI() {
+    if (composing.current) return;
+    rememberCursor();
+    try {
+      const value = current.current;
+      setAI({
+        ...selectionRequest(
+          value.body,
+          value.bodyColors || [],
+          insertSelection.current.start,
+          insertSelection.current.end,
+        ),
+        original: value,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "文章を選択してください。");
+    }
+  }
+  function closeAI() {
+    if (aiApplying.current) return;
+    flushSync(() => setAI(null));
+    restoreCursor();
+  }
+  async function prepareAI() {
+    if (!ai) throw Error("メモを開き直してください。");
+    await persist();
+    if (dirty.current || pending.current || composing.current)
+      throw Error("原文を保存できません。保存状態を確認してください。");
+    const saved = await getNote(ai.original.id);
+    if (
+      !saved ||
+      saved.deletedAt ||
+      saved.body !== ai.original.body ||
+      JSON.stringify(saved.bodyColors || []) !==
+        JSON.stringify(ai.original.bodyColors || [])
+    )
+      throw Error("原文が変更されました。メモを開き直して再実行してください。");
+  }
+  async function applyAI(result: AIText, insert: boolean) {
+    if (!ai || aiApplying.current) return;
+    aiApplying.current = true;
+    try {
+      await prepareAI();
+      if (
+        current.current.body !== ai.original.body ||
+        JSON.stringify(current.current.bodyColors || []) !==
+          JSON.stringify(ai.original.bodyColors || [])
+      )
+        throw Error("処理中に原文が変更されました。メモを開き直してください。");
+      const patch = applyText(
+        ai.original.body,
+        ai.original.bodyColors || [],
+        ai.start,
+        ai.end,
+        result,
+        insert,
+      );
+      const saved = await applyAIEdit(ai.original, patch);
+      const before = {
+        ...saved,
+        body: ai.original.body,
+        bodyColors: ai.original.bodyColors,
+      };
+      const cursor: EditCursor = {
+        field: "body",
+        start: insertSelection.current.start,
+        end: insertSelection.current.end,
+        scroll: insertSelection.current.scroll,
+        direction: "none",
+      };
+      history.current.record(
+        editState(before, cursor),
+        editState(saved, {
+          ...cursor,
+          start: patch.selection[0],
+          end: patch.selection[1],
+        }),
+        "ai",
+      );
+      current.current = saved;
+      base.current = saved;
+      dirty.current = false;
+      try {
+        clearSavedDraft(ai.original);
+      } catch {
+        /* The committed DB copy is safe. */
+      }
+      insertSelection.current = {
+        ...insertSelection.current,
+        start: patch.selection[0],
+        end: patch.selection[1],
+      };
+      flushSync(() => {
+        setNote(saved);
+        setStatus("保存済み");
+        setError("");
+        setSelection(patch.selection);
+        setAI(null);
+      });
+      onSaved();
+      restoreCursor();
+      lastCursor.current = {
+        ...cursor,
+        start: patch.selection[0],
+        end: patch.selection[1],
+      };
+      beforeCursor.current = null;
+      beforeSelection.current = undefined;
+    } finally {
+      aiApplying.current = false;
+    }
+  }
   const [palette, setPalette] = useState(false);
   const [insertMenu, setInsertMenu] = useState(false),
     [insertExpanded, setInsertExpanded] = useState(false);
@@ -474,6 +593,30 @@ export default function Editor({
   }
   return (
     <div className={`editor memo-color-${note.backgroundColor || "white"}`}>
+      {ai && (
+        <Suspense
+          fallback={
+            <Modal
+              label="AIアシスタント"
+              className="palette-sheet"
+              onClose={closeAI}
+            >
+              <p role="status">読み込んでいます…</p>
+              <button type="button" onClick={closeAI}>
+                キャンセル
+              </button>
+            </Modal>
+          }
+        >
+          <AIAssistant
+            source={ai.request}
+            partial={ai.start !== 0 || ai.end !== ai.original.body.length}
+            onPrepare={prepareAI}
+            onApply={applyAI}
+            onClose={closeAI}
+          />
+        </Suspense>
+      )}
       {insertMenu && (
         <Modal
           label="挿入・設定"
@@ -935,6 +1078,17 @@ export default function Editor({
           }}
         >
           <SquareCheck size={21} />
+        </button>
+        <button
+          type="button"
+          className="icon-button ai-toggle"
+          aria-label="AIアシスタントを開く"
+          disabled={compositionActive}
+          onPointerDown={rememberCursor}
+          onClick={openAI}
+        >
+          <Sparkles size={19} />
+          <span>AI</span>
         </button>
         <ShareAction note={note} disabled={busy || audioBusy || imageBusy} />
         <button

@@ -1,6 +1,6 @@
 # My Memo
 
-iPhone Safari向けの日本語メモアプリ。既存アプリを拡張した0.10.2です。React / TypeScript / Vite / Tailwind CSS / Dexie（IndexedDB）を使用し、サーバー・ログインなしで端末内に保存します。
+iPhone Safari向けの日本語メモアプリ。既存アプリを拡張した0.11.0です。React / TypeScript / Vite / Tailwind CSS / Dexie（IndexedDB）を使用し、基本のメモはログイン不要で端末内に保存します。任意のAI機能のみサーバー設定が必要です。
 
 ## 起動と検証
 
@@ -93,7 +93,7 @@ Safariの共有メニューから「ホーム画面に追加」。公開前に�
 
 既存Netlifyサイトの更新設定は `netlify.toml`。GitHub `kjn52p4sc8-beep/m` の公開対象は `release/my-memo`、ビルドは `npm run build`、公開先は `dist`、Node.jsは24。作業は別ブランチで行い、テスト後に許可された更新を公開ブランチへ反映します。Netlify側でこのブランチとの連携とDeploy成功を確認してください。push・公開にはユーザーの許可が必要です。
 
-公開URLを共有しても、端末内のメモは相手に共有されません。認証（Apple/Google/メール）、クラウド同期、共同編集、招待・QR・共有権限、AI、OCR、App Store公開は未実装です。導入前に [外部サービスの計画](docs/implementation/external-services.md) を確認してください。
+公開URLを共有しても、端末内のメモは相手に共有されません。認証（Apple/Google/メール）、クラウド同期、共同編集、招待・QR・共有権限、OCR、App Store公開は未実装です。導入前に [外部サービスの計画](docs/implementation/external-services.md) を確認してください。
 
 ## 構成
 
@@ -162,3 +162,9 @@ HTTPSの安全な接続とService Worker対応を別々に判定します。HTTP
 - 文字数の詳細は開いた時だけ計算し、文字分割の配列生成を削減しました。通常カウントは従来どおりリアルタイムです。
 - PWAは画面復帰・オンライン復帰時に5分以上間隔を空けて更新を確認します。設定で待機中の更新を表示し、確認後に適用します。編集中の自動更新・自動再読み込みは行いません。
 - アプリのコードに「Powered by Netlify」はありません。公開サイトの表示元はこの環境から未確認です。CSSで隠す変更はしていません。[バッジの確認手順と未検証項目](docs/releases/0.10.2-quality.md)を参照してください。
+
+## AI文章アシスタント（0.11.0・サーバー設定が必要）
+
+編集画面の「AI」から要約・丁寧な文章・敬語変更・校正・日本語/英語翻訳を選びます。初回は送信への同意が必要で、送信前に本文を保存します。色付き文字は元の文字列と色を保護し、AI結果を確認してからコピー・挿入・置換します。一部を選択して処理することもできます。置換・挿入は既存のUndo/Redoで戻せます。
+
+**APIキーと共有利用制限の設定がない状態では生成できません。** OpenAI / Netlify Functions / Upstash Redisを使用します。費用・秘密値・環境変数・公開後確認は [AI設定手順](docs/implementation/ai-setup.md) を参照してください。実APIによる生成品質とiPhone実機での確認は未実施です。DB/バックアップの形式は変更していません。

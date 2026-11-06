@@ -884,3 +884,103 @@ body[data-scroll-lock] .editor-dock {
   margin: 0;
   min-width: 0;
 }
+/* AI is a small, optional sheet; keep every existing editor action reachable. */
+.editor-dock .ai-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 2px;
+  font-size: 10px;
+  line-height: 1.1;
+}
+.editor-dock > .icon-button {
+  flex-shrink: 0;
+}
+@media (max-width: 374px) {
+  .editor-dock,
+  [data-keyboard="open"] .editor-dock {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+  .editor-dock .insert-toggle {
+    width: 44px;
+    min-width: 44px;
+  }
+}
+.ai-sheet .modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ai-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ai-heading h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 18px;
+}
+.ai-actions,
+.ai-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ai-actions > button {
+  text-align: left;
+  border-width: 0 0 1px;
+  border-radius: 0;
+  padding: 12px 4px;
+  background: transparent;
+}
+.ai-options h3 {
+  font-size: 16px;
+  margin: 0;
+}
+.ai-options label:not(.ai-consent) {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ai-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+}
+.ai-consent input {
+  width: 24px;
+  min-width: 24px;
+  height: 44px;
+  margin: 0;
+}
+.ai-sheet .muted,
+.ai-privacy {
+  font-size: 13px;
+}
+.ai-source,
+.ai-result {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+  user-select: text;
+}
+.ai-source {
+  max-height: 180px;
+  overflow: auto;
+  padding: 8px 0;
+}
+.ai-result {
+  padding: 12px 0;
+}
+.ai-result-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.ai-sheet textarea {
+  width: 100%;
+  min-height: 120px;
+}

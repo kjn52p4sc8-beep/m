@@ -1,3 +1,4 @@
+import { validateProductivity } from "./productivity";
 import {
   validateSchedule,
   startSchedule,
@@ -196,6 +197,40 @@ export async function saveNote(note: Note) {
           ? previous.updatedAt
           : note.updatedAt,
     });
+  });
+}
+// Compare and apply inside one transaction: an AI response must never overwrite
+// edits from another tab, resurrect trash, or replace unrelated note metadata.
+export async function applyAIEdit(
+  expected: Pick<Note, "id" | "body" | "bodyColors">,
+  patch: Pick<Note, "body" | "bodyColors">,
+) {
+  if (typeof patch.body !== "string" || patch.body.length > 1_000_000)
+    throw Error("反映後の文章が長すぎます。");
+  const colors = validateProductivity(
+    { bodyColors: patch.bodyColors || [] },
+    patch.body,
+  ).bodyColors;
+  return db.transaction("rw", db.notes, async () => {
+    const note = await db.notes.get(expected.id);
+    if (
+      !note ||
+      note.deletedAt ||
+      note.body !== expected.body ||
+      JSON.stringify(note.bodyColors || []) !==
+        JSON.stringify(expected.bodyColors || [])
+    )
+      throw Error(
+        "処理中に原文が変更・削除されました。結果をコピーするか、メモを開き直して再実行してください。",
+      );
+    const next = {
+      ...note,
+      body: patch.body,
+      bodyColors: colors,
+      updatedAt: new Date().toISOString(),
+    };
+    await db.notes.put(next);
+    return next;
   });
 }
 export async function removeNote(id: string) {
